@@ -48,7 +48,7 @@ from opticode.semantic.types import TypeName
 SPAN = SourceSpan(1, 1, 1, 1)
 
 #: The compiler's own regression corpus, the same one ``test_examples.py`` walks.
-EXAMPLES_DIR = Path(__file__).resolve().parents[1] / "examples"
+EXAMPLES_DIR = Path(__file__).resolve().parents[2] / "examples" / "valid"
 
 
 # ------------------------------------------------------------------- helpers
@@ -658,6 +658,180 @@ def test_function_analysis_serializes_to_plain_json():
     assert json.loads(json.dumps(payload)) == payload
     assert payload["name"] == "f"
     assert payload["instructions"], "expected per-instruction facts"
+    assert payload["traces"], "expected the iteration stepper's data"
+
+
+# ------------------------------------------------------- the iteration stepper
+
+
+def test_every_analysis_reports_a_trace_whose_count_matches_its_iteration_total():
+    """The stepper replays the trace; the count next to it is the real number of updates.
+
+    They come from one solver run, so a trace shorter than `iterations` is only correct with
+    `trace_truncated` set. A trace that is short *without* saying so would be a stepper that
+    silently stops early and looks like convergence.
+    """
+    source = """
+    int f(int n) {
+        int s; s = 0;
+        int i; i = 0;
+        while (i < n) { s = s + i; i = i + 1; }
+        return s;
+    }
+    """
+    program = compile_source(source)
+    payload = analyze(program, cfgs=build_program_cfgs(program))["f"]
+
+    assert set(payload["traces"]) == {"liveness", "reaching", "constant_propagation"}
+    for name, trace in payload["traces"].items():
+        assert trace["iterations"] == payload["iterations"][name], name
+        if trace["trace_truncated"]:
+            assert len(trace["steps"]) == MAX_TRACE_STEPS, name
+        else:
+            assert len(trace["steps"]) == trace["iterations"], name
+
+
+def test_a_backward_analysis_is_labelled_backward():
+    """Liveness is defined backwards; a stepper that ran it forwards would be a different proof.
+
+    The direction is in the payload so the UI can label the animation, and it is asserted
+    here per analysis because a copy-paste that swapped two of the three would otherwise
+    produce a plausible-looking, wrong stepper.
+    """
+    result = analyze_cfg(cfg_for("int f(int n) { int s; s = 0; int i; i = 0;"
+                                 " while (i < n) { s = s + i; i = i + 1; } return s; }"))
+    assert result.traces["liveness"].direction == "backward"
+    assert result.traces["reaching"].direction == "forward"
+    assert result.traces["constant_propagation"].direction == "forward"
+
+
+def test_the_steps_are_in_worklist_order_and_renumbered_from_one():
+    """`iteration` is a position, not a block id, and the UI steps through it in order.
+
+    The order comes from the worklist, which is a function of the CFG alone. That is what
+    makes the trace reproducible, and reproducible is what makes it worth showing: a stepper
+    that showed a different order on every run could not be used to argue anything.
+    """
+    cfg = cfg_for(
+        "int f(int n) { int s; s = 0; int i; i = 0;"
+        " while (i < n) { s = s + i; i = i + 1; } return s; }"
+    )
+    known = {block.id for block in cfg.blocks}
+    result = analyze_cfg(cfg)
+    for name, trace in result.traces.items():
+        numbers = [step["iteration"] for step in trace.steps]
+        assert numbers == list(range(1, len(numbers) + 1)), name
+        assert all(step["block"] in known for step in trace.steps), name
+
+
+def test_a_step_carries_the_rendered_value_not_the_domain_object():
+    """The domain value cannot cross a JSON boundary, so the recorded step is already rendered.
+
+    Asserting the *shape* of the rendered form is what pins the UI's contract: a name set is
+    a sorted list, so the stepper can diff two steps without knowing the domain.
+    """
+    result = analyze_cfg(cfg_for("int f(int n) { int s; s = 0; int i; i = 0;"
+                                 " while (i < n) { s = s + i; i = i + 1; } return s; }"))
+    live = result.traces["liveness"]
+    assert live.steps
+    for step in live.steps:
+        assert set(step) == {"iteration", "block", "in", "out", "changed"}
+        assert isinstance(step["in"], list)
+        assert step["in"] == sorted(step["in"]), "a name set renders sorted, so steps diff"
+
+    constants = result.traces["constant_propagation"]
+    for step in constants.steps:
+        assert isinstance(step["in"], dict)
+
+
+def test_a_truncated_trace_still_says_how_many_updates_it_took():
+    """A function big enough to overrun the cap is the interesting case, not an edge case.
+
+    The step is capped so the response cannot grow without bound; the total is not capped, so
+    the panel can still say "612 updates, here are the first 200".
+    """
+    source = (
+        "int f(int c) {\n"
+        "  int x;\n"
+        "  x = 0;\n"
+        + "".join(f"  if (c > {i}) {{ x = x + {i}; }}\n" for i in range(120))
+        + "  return x;\n"
+        "}\n"
+    )
+    payload = analyze(compile_source(source), cfgs=build_program_cfgs(compile_source(source)))[
+        "f"
+    ]
+    assert payload["traces"], "expected traces for a program this size"
+    truncated = [t for t in payload["traces"].values() if t["trace_truncated"]]
+    assert truncated, "fixture no longer overruns the cap"
+    for trace in truncated:
+        assert len(trace["steps"]) == MAX_TRACE_STEPS
+        assert trace["iterations"] > MAX_TRACE_STEPS
+
+
+def test_building_a_report_without_solutions_still_works_and_says_so():
+    """The traces feed only the stepper, so a caller holding plain dicts is not blocked.
+
+    Every other fact in the report is derived from the block fixed points, so re-assembling a
+    report from those alone should not require the solver objects back. The empty `traces` is
+    the honest answer — no stepper data — rather than invented data. This mirrors what
+    `analyze_cfg` does, minus the one keyword argument.
+    """
+    from opticode.analysis.constprop import knowns
+    from opticode.analysis.results import build_function_analysis
+
+    cfg = cfg_for("int f() { int x; x = 1; return x; }")
+    live = liveness(cfg)
+    definitions = reaching(cfg)
+    constants = propagate(cfg)
+    shared = {
+        "live": dict(live.block_in),
+        "live_out": dict(live.block_out),
+        "reaching_in": dict(definitions.block_in),
+        "reaching_out": dict(definitions.block_out),
+        "states_in": dict(constants.block_in),
+        "states_out": dict(constants.block_out),
+        "exit_values": knowns(cfg, constants),
+        "iterations": {
+            "liveness": live.iterations,
+            "reaching": definitions.iterations,
+            "constant_propagation": constants.iterations,
+        },
+    }
+    without = build_function_analysis(cfg, **shared)
+    with_solutions = build_function_analysis(
+        cfg,
+        **shared,
+        solutions={
+            "liveness": live,
+            "reaching": definitions,
+            "constant_propagation": constants,
+        },
+    )
+
+    assert without.traces == {}
+    assert without.to_dict()["traces"] == {}
+    assert set(with_solutions.traces) == {"liveness", "reaching", "constant_propagation"}
+    # Everything else is byte-identical, which is the whole claim: the stepper is additive.
+    without_payload = without.to_dict()
+    with_payload = with_solutions.to_dict()
+    del without_payload["traces"], with_payload["traces"]
+    assert without_payload == with_payload
+
+
+def test_the_trace_is_deterministic_across_runs():
+    """A stepper that showed a different order each time could not be used to argue anything."""
+    source = """
+    int f(int n) {
+        int s; s = 0;
+        int i; i = 0;
+        while (i < n) { s = s + i; i = i + 1; }
+        return s;
+    }
+    """
+    first = analyze(compile_source(source), cfgs=build_program_cfgs(compile_source(source)))
+    second = analyze(compile_source(source), cfgs=build_program_cfgs(compile_source(source)))
+    assert first["f"]["traces"] == second["f"]["traces"]
 
 
 def test_analyze_cfg_returns_the_typed_result():

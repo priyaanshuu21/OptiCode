@@ -38,6 +38,26 @@
     filter: drop-shadow(0 0 4px rgb(245 158 11 / 40%));
   }
 
+  /*
+   * Findings are annotations, not errors.
+   *
+   * A dotted underline rather than a squiggle: the squiggle is Monaco's marker vocabulary, and
+   * using it here would claim these programs failed to compile. A dotted rule reads the way a
+   * marginal note reads — the code is fine, but this part of it is not doing anything.
+   */
+  .finding-dead_assignment {
+    @apply border-b border-dotted border-amber-400/70;
+  }
+
+  .finding-constant_condition {
+    @apply border-b border-dotted border-rose-400/70;
+  }
+
+  .finding-unreachable_block,
+  .finding-unreachable_instruction {
+    @apply border-b border-dotted border-slate-500;
+  }
+
   /* Monaco's scrollbars are wider than the app's own; bring them in line. */
   .monaco-editor .scrollbar.vertical > div > div {
     width: 10px !important;

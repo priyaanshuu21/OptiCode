@@ -1,7 +1,21 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { compile, codegenOf, cfgOf, dataflowOf, irOf, stageRan, stageSkipped, tokensOf, ApiError } from '@/api/client'
-import type { CompileResponse } from '@/api/types'
+import {
+  compile,
+  codegenOf,
+  cfgOf,
+  dataflowOf,
+  irOf,
+  analysisOf,
+  optimizationOf,
+  listExamples,
+  readExample,
+  stageRan,
+  stageSkipped,
+  tokensOf,
+  ApiError,
+} from '@/api/client'
+import { isExampleList, PayloadError, type CompileResponse } from '@/api/types'
 import { loadFixture, loadFixtures } from './fixtures'
 
 /**
@@ -15,12 +29,20 @@ import { loadFixture, loadFixtures } from './fixtures'
 describe('fixture loader', () => {
   it('loads every fixture as a recorded compile response', () => {
     const all = loadFixtures()
-    expect(all).toHaveLength(6)
+    expect(all).toHaveLength(8)
     for (const { name, fixture } of all) {
       expect(fixture.source, name).toBeTypeOf('string')
       expect(fixture.request.mode, name).toMatch(/analyze|optimize/)
       expect(fixture.response.stages_run, name).toContain('tokens')
     }
+  })
+
+  it('replays a fixture with the same stdin it was recorded with', () => {
+    // The `io` example reads four values. Replaying it with no input would exercise the
+    // exhausted-input path instead of the one the fixture was recorded for.
+    const io = loadFixture('io')
+    expect(io.stdin.trim()).not.toBe('')
+    expect(io.request.stdin).toBe(io.stdin)
   })
 })
 
@@ -73,6 +95,54 @@ describe('payload narrowing', () => {
     expect(cfgOf(response)).toBeNull()
     expect(dataflowOf(response)).toBeNull()
     expect(codegenOf(response)).toBeNull()
+    expect(analysisOf(response)).toBeNull()
+    // Optimization did not run, so there is no report. A view that rendered an empty pass table
+    // here would be claiming the optimizer ran and found nothing.
+    expect(optimizationOf(response)).toBeNull()
+  })
+
+  it('narrows an analysis report with findings, and not just a count', () => {
+    const { response } = loadFixture('dead_code')
+    const report = analysisOf(response)
+
+    expect(report).not.toBeNull()
+    expect(report?.finding_count).toBe(report?.findings.length)
+    expect(report?.finding_count).toBeGreaterThan(0)
+
+    const finding = report?.findings[0]
+    expect(finding?.kind).toBeTypeOf('string')
+    expect(finding?.message).toBeTypeOf('string')
+    // A finding without a span cannot be clicked through to the source, which would make the
+    // panel's central affordance silently do nothing.
+    expect(finding?.span).not.toBeNull()
+  })
+
+  it('narrows an optimization report, including what it skipped', () => {
+    const { response } = loadFixture('loops')
+    const report = optimizationOf(response)
+
+    expect(report?.changed).toBeTypeOf('boolean')
+    expect(report?.passes.length).toBeGreaterThan(0)
+    expect(report?.stats.before.instructions).toBeGreaterThanOrEqual(report?.stats.after.instructions ?? 0)
+
+    // The skipped list is the part that keeps the wins honest, so it has to survive narrowing.
+    for (const gap of report?.skipped ?? []) {
+      expect(gap.kind).toBeTypeOf('string')
+      expect(gap.reason).not.toBe('')
+    }
+  })
+
+  it('records an unverified entry as a gap rather than a pass', () => {
+    // `loops` has helper functions with parameters, so the oracle cannot call them. The report
+    // has to say so; a report that only listed the verified entries would overstate coverage.
+    const { response } = loadFixture('loops')
+    const report = optimizationOf(response)
+
+    const unverified = report?.verification?.unverified_entries ?? []
+    const gaps = report?.skipped ?? []
+    for (const entry of unverified) {
+      expect(gaps.some((gap) => gap.kind === 'unverified_entry' && gap.target === entry)).toBe(true)
+    }
   })
 })
 
@@ -140,6 +210,133 @@ describe('compile', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('null', { status: 200 })))
 
     await expect(compile({ source: '', mode: 'analyze' })).rejects.toThrow(/non-object/)
+  })
+})
+
+describe('solver traces', () => {
+  it('carries a step per block update, and admits when it cut the trace short', () => {
+    const { response } = loadFixture('loops')
+    const facts = dataflowOf(response)
+    const main = facts?.main
+    const trace = main?.traces?.liveness
+
+    expect(trace).toBeDefined()
+    // A trace with no steps would render a stepper that steps nowhere, and a stepper that
+    // claims a convergence it did not record would be worse than none.
+    expect(trace?.steps.length).toBeGreaterThan(0)
+    expect(trace?.iterations).toBeGreaterThanOrEqual(trace?.steps.length ?? 0)
+    // Liveness is defined backwards, which the stepper labels so the direction is not a surprise.
+    expect(trace?.direction).toBe('backward')
+
+    for (const step of trace?.steps ?? []) {
+      expect(step.iteration).toBeGreaterThan(0)
+      expect(step.block).toBeTypeOf('string')
+      expect(Array.isArray(step.in)).toBe(true)
+    }
+  })
+
+  it('steps in a strictly increasing iteration order', () => {
+    const { response } = loadFixture('loops')
+    const steps = dataflowOf(response)?.main?.traces?.liveness?.steps ?? []
+    const numbers = steps.map((step) => step.iteration)
+
+    // The order is the worklist's order, which is what makes a screenshot of the stepper a
+    // claim somebody can check. A gap is fine (a step can be dropped when capping); a
+    // repeat is not.
+    for (let index = 1; index < numbers.length; index += 1) {
+      expect(numbers[index]!).toBeGreaterThan(numbers[index - 1]!)
+    }
+  })
+
+  it('keeps per-block values separate per analysis', () => {
+    // Liveness and reaching defs both answer a question about a block, and they answer it
+    // differently. Reading one under the other's heading would be confidently wrong.
+    const { response } = loadFixture('dead_code')
+    const facts = dataflowOf(response)?.overwritten_before_read
+
+    expect(facts?.live_in).toBeDefined()
+    expect(facts?.reaching_in).toBeDefined()
+    expect(Object.keys(facts?.reaching_in ?? {}).length).toBeGreaterThan(0)
+    // The constant-propagation states are only in the trace, not in the report.
+    expect(facts?.traces?.constant_propagation?.steps.length).toBeGreaterThan(0)
+  })
+})
+
+describe('examples library', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('fetches the listing without downloading every source', async () => {
+    const body = {
+      count: 2,
+      invalid_count: 1,
+      examples: [
+        { name: 'hello', title: 'Hello', blurb: 'A greeting', file: 'valid/hello.c', valid: true, stdin: '' },
+        { name: 'oops', title: 'Oops', blurb: 'Broken', file: 'invalid/oops.c', valid: false, stdin: '' },
+      ],
+    }
+    const fetchMock = vi.fn<(url: string) => Promise<Response>>(async () =>
+      new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await listExamples()
+
+    expect(result.count).toBe(2)
+    expect(result.invalid_count).toBe(1)
+    // The point of splitting the endpoints: the menu must not have to hold every program.
+    expect(result.examples[0]).not.toHaveProperty('source')
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/examples')
+  })
+
+  it('fetches one example, escaping the name in the path', async () => {
+    const fetchMock = vi.fn<(url: string) => Promise<Response>>(async () =>
+      new Response(
+        JSON.stringify({ name: 'x', title: 'X', blurb: '', file: 'valid/x.c', valid: true, stdin: '', source: 'int main() {}' }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const detail = await readExample('x')
+
+    expect(detail.source).toContain('main')
+    // A raw interpolation would let a stray `/` or `?` change which endpoint is called. The
+    // backend validates names too, but the client is not the thing that has to be sure.
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/examples/x')
+  })
+
+  it('rejects a listing that is not the documented shape', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(JSON.stringify({ examples: 'nope' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    )
+
+    // A menu fed this would render zero examples, which reads as "there are none" rather than
+    // as "the answer was not what we asked for".
+    await expect(listExamples()).rejects.toThrow(PayloadError)
+  })
+
+  it('surfaces the backend 404 for an example that is not in the manifest', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('unknown example', { status: 404 })),
+    )
+
+    await expect(readExample('nope')).rejects.toThrow(ApiError)
+  })
+
+  it('accepts a listing whose entries are summaries', () => {
+    expect(
+      isExampleList({ count: 1, invalid_count: 0, examples: [{ name: 'a' }] }),
+    ).toBe(true)
+    expect(isExampleList({ count: 1, invalid_count: 0, examples: [{ title: 'a' }] })).toBe(false)
   })
 })
 

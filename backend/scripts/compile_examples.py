@@ -11,6 +11,10 @@ The leading status column says what the optimizer did:
 * ``warn`` - smaller, but the oracle could not run it (no parameterless entry point)
 * ``skip`` - smaller, and verification was skipped for the same reason
 * ``same`` - nothing to optimize
+
+Usage::
+
+    python backend/scripts/compile_examples.py [--dump]
 """
 
 from __future__ import annotations
@@ -18,7 +22,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT / "backend"))
 
 from opticode.analysis import analyze_findings, analyze_functions  # noqa: E402
 from opticode.analysis.findings import diagnostics_for  # noqa: E402
@@ -28,7 +33,7 @@ from opticode.optimizer import OptimizationError, optimize  # noqa: E402
 from opticode.parser import parse  # noqa: E402
 from opticode.semantic import analyze  # noqa: E402
 
-root = Path(__file__).resolve().parent
+root = REPO_ROOT / "examples" / "valid"
 examples = sorted(root.glob("*.c"))
 print(f"{len(examples)} examples\n")
 

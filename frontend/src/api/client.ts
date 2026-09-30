@@ -1,19 +1,27 @@
 import {
   assertPayload,
+  isAnalysis,
   isAstNode,
   isCfg,
   isCodegen,
   isDataflow,
+  isExampleDetail,
+  isExampleList,
   isIrProgram,
+  isOptimization,
+  type AnalysisReport,
   type AstNode,
   type CodegenResultPayload,
   type CompileRequest,
   type CompileResponse,
   type Diagnostic,
+  type ExampleDetail,
+  type ExampleListResponse,
   type FunctionCfg,
   type FunctionFacts,
   type HealthResponse,
   type IrProgram,
+  type OptimizationPayload,
   type Token,
 } from './types'
 
@@ -32,14 +40,10 @@ export class ApiError extends Error {
   }
 }
 
-async function post(path: string, body: unknown): Promise<unknown> {
+async function request(path: string, init: RequestInit): Promise<unknown> {
   let response: Response
   try {
-    response = await fetch(`${BASE_URL}${path}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    })
+    response = await fetch(`${BASE_URL}${path}`, init)
   } catch {
     // A fetch that never completes is the common case here: the backend is not running. The
     // browser's own message ("Failed to fetch") says nothing about what to do about it.
@@ -53,6 +57,14 @@ async function post(path: string, body: unknown): Promise<unknown> {
     throw new ApiError(`The compiler API returned ${response.status}. ${text}`.trim(), response.status)
   }
   return response.json() as Promise<unknown>
+}
+
+async function post(path: string, body: unknown): Promise<unknown> {
+  return request(path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
 }
 
 /** Compile a program and return the whole response, without narrowing anything yet. */
@@ -78,16 +90,32 @@ export async function compile(
 }
 
 export async function health(): Promise<HealthResponse> {
-  let response: Response
-  try {
-    response = await fetch(`${BASE_URL}/api/health`)
-  } catch {
-    throw new ApiError('Could not reach the compiler API health endpoint.', 0)
-  }
-  if (!response.ok) {
-    throw new ApiError(`Health check returned ${response.status}.`, response.status)
-  }
-  return (await response.json()) as HealthResponse
+  const body = await request('/api/health', { method: 'GET' })
+  return body as HealthResponse
+}
+
+/**
+ * The examples library, without the sources.
+ *
+ * The menu needs every example's name, title and blurb and none of their text, so the listing
+ * and the detail are separate requests. Fetching the corpus to build a dropdown would download
+ * two dozen programs to show two dozen lines.
+ */
+export async function listExamples(): Promise<ExampleListResponse> {
+  const body = await request('/api/examples', { method: 'GET' })
+  return assertPayload(body, 'the examples listing', isExampleList)
+}
+
+/**
+ * One example's source.
+ *
+ * The name is interpolated raw, which is safe because the backend rejects anything that is not
+ * a slug — but the client is not the thing that has to be sure. `encodeURIComponent` keeps a
+ * stray character from changing which endpoint is being called.
+ */
+export async function readExample(name: string): Promise<ExampleDetail> {
+  const body = await request(`/api/examples/${encodeURIComponent(name)}`, { method: 'GET' })
+  return assertPayload(body, `the example ${name}`, isExampleDetail)
 }
 
 // Narrowing accessors. Each returns null when the stage did not run, which is different from
@@ -122,6 +150,16 @@ export function dataflowOf(response: CompileResponse): Record<string, FunctionFa
 export function codegenOf(response: CompileResponse): CodegenResultPayload | null {
   const value = response.codegen
   return value == null ? null : assertPayload(value, 'a codegen result', isCodegen)
+}
+
+export function analysisOf(response: CompileResponse): AnalysisReport | null {
+  const value = response.analysis
+  return value == null ? null : assertPayload(value, 'an analysis report', isAnalysis)
+}
+
+export function optimizationOf(response: CompileResponse): OptimizationPayload | null {
+  const value = response.optimization
+  return value == null ? null : assertPayload(value, 'an optimization report', isOptimization)
 }
 
 /** Whether a stage ran, as opposed to being skipped. */

@@ -3898,6 +3898,181 @@
             "used@i7"
           ]
         },
+        "traces": {
+          "constant_propagation": {
+            "direction": "forward",
+            "iterations": 4,
+            "steps": [
+              {
+                "block": "B1",
+                "changed": true,
+                "in": {
+                  "flag": "NAC",
+                  "only_here": "NAC",
+                  "used": "NAC"
+                },
+                "iteration": 1,
+                "out": {
+                  "flag": "NAC",
+                  "only_here": "NAC",
+                  "used": "CONST(0)"
+                }
+              },
+              {
+                "block": "B2",
+                "changed": true,
+                "in": {
+                  "flag": "NAC",
+                  "only_here": "NAC",
+                  "used": "CONST(0)"
+                },
+                "iteration": 2,
+                "out": {
+                  "flag": "NAC",
+                  "only_here": "CONST(10)",
+                  "used": "CONST(1)"
+                }
+              },
+              {
+                "block": "B3",
+                "changed": true,
+                "in": {
+                  "flag": "NAC",
+                  "only_here": "NAC",
+                  "used": "CONST(0)"
+                },
+                "iteration": 3,
+                "out": {
+                  "flag": "NAC",
+                  "only_here": "NAC",
+                  "used": "CONST(2)"
+                }
+              },
+              {
+                "block": "B4",
+                "changed": true,
+                "in": {
+                  "flag": "NAC",
+                  "only_here": "NAC",
+                  "used": "NAC"
+                },
+                "iteration": 4,
+                "out": {
+                  "flag": "NAC",
+                  "only_here": "NAC",
+                  "used": "NAC"
+                }
+              }
+            ],
+            "trace_truncated": false
+          },
+          "liveness": {
+            "direction": "backward",
+            "iterations": 4,
+            "steps": [
+              {
+                "block": "B4",
+                "changed": true,
+                "in": [
+                  "used"
+                ],
+                "iteration": 1,
+                "out": []
+              },
+              {
+                "block": "B3",
+                "changed": true,
+                "in": [],
+                "iteration": 2,
+                "out": [
+                  "used"
+                ]
+              },
+              {
+                "block": "B2",
+                "changed": true,
+                "in": [],
+                "iteration": 3,
+                "out": [
+                  "used"
+                ]
+              },
+              {
+                "block": "B1",
+                "changed": true,
+                "in": [
+                  "flag"
+                ],
+                "iteration": 4,
+                "out": []
+              }
+            ],
+            "trace_truncated": false
+          },
+          "reaching": {
+            "direction": "forward",
+            "iterations": 4,
+            "steps": [
+              {
+                "block": "B1",
+                "changed": true,
+                "in": [
+                  "PARAM(flag)"
+                ],
+                "iteration": 1,
+                "out": [
+                  "PARAM(flag)",
+                  "used@i1"
+                ]
+              },
+              {
+                "block": "B2",
+                "changed": true,
+                "in": [
+                  "PARAM(flag)",
+                  "used@i1"
+                ],
+                "iteration": 2,
+                "out": [
+                  "PARAM(flag)",
+                  "only_here@i3",
+                  "used@i4"
+                ]
+              },
+              {
+                "block": "B3",
+                "changed": true,
+                "in": [
+                  "PARAM(flag)",
+                  "used@i1"
+                ],
+                "iteration": 3,
+                "out": [
+                  "PARAM(flag)",
+                  "used@i7"
+                ]
+              },
+              {
+                "block": "B4",
+                "changed": true,
+                "in": [
+                  "PARAM(flag)",
+                  "only_here@i3",
+                  "used@i4",
+                  "used@i7"
+                ],
+                "iteration": 4,
+                "out": [
+                  "PARAM(flag)",
+                  "only_here@i3",
+                  "used@i4",
+                  "used@i7"
+                ]
+              }
+            ],
+            "trace_truncated": false
+          }
+        },
         "uninitialized_reads": []
       },
       "dead_loop_value": {
@@ -4579,6 +4754,589 @@
             "total@i9"
           ]
         },
+        "traces": {
+          "constant_propagation": {
+            "direction": "forward",
+            "iterations": 11,
+            "steps": [
+              {
+                "block": "B1",
+                "changed": true,
+                "in": {
+                  "i": "NAC",
+                  "n": "NAC",
+                  "scratch": "NAC",
+                  "t1": "NAC",
+                  "t2": "NAC",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "total": "NAC"
+                },
+                "iteration": 1,
+                "out": {
+                  "i": "CONST(0)",
+                  "n": "NAC",
+                  "scratch": "NAC",
+                  "t1": "NAC",
+                  "t2": "NAC",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "total": "CONST(0)"
+                }
+              },
+              {
+                "block": "B2",
+                "changed": true,
+                "in": {
+                  "i": "CONST(0)",
+                  "n": "NAC",
+                  "scratch": "NAC",
+                  "t1": "NAC",
+                  "t2": "NAC",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "total": "CONST(0)"
+                },
+                "iteration": 2,
+                "out": {
+                  "i": "CONST(0)",
+                  "n": "NAC",
+                  "scratch": "NAC",
+                  "t1": "NAC",
+                  "t2": "NAC",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "total": "CONST(0)"
+                }
+              },
+              {
+                "block": "B3",
+                "changed": true,
+                "in": {
+                  "i": "CONST(0)",
+                  "n": "NAC",
+                  "scratch": "NAC",
+                  "t1": "NAC",
+                  "t2": "NAC",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "total": "CONST(0)"
+                },
+                "iteration": 3,
+                "out": {
+                  "i": "CONST(1)",
+                  "n": "NAC",
+                  "scratch": "CONST(0)",
+                  "t1": "NAC",
+                  "t2": "CONST(0)",
+                  "t3": "CONST(0)",
+                  "t4": "CONST(1)",
+                  "total": "CONST(0)"
+                }
+              },
+              {
+                "block": "B4",
+                "changed": true,
+                "in": {
+                  "i": "CONST(0)",
+                  "n": "NAC",
+                  "scratch": "NAC",
+                  "t1": "NAC",
+                  "t2": "NAC",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "total": "CONST(0)"
+                },
+                "iteration": 4,
+                "out": {
+                  "i": "CONST(0)",
+                  "n": "NAC",
+                  "scratch": "NAC",
+                  "t1": "NAC",
+                  "t2": "NAC",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "total": "CONST(0)"
+                }
+              },
+              {
+                "block": "B2",
+                "changed": true,
+                "in": {
+                  "i": "NAC",
+                  "n": "NAC",
+                  "scratch": "NAC",
+                  "t1": "NAC",
+                  "t2": "NAC",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "total": "CONST(0)"
+                },
+                "iteration": 5,
+                "out": {
+                  "i": "NAC",
+                  "n": "NAC",
+                  "scratch": "NAC",
+                  "t1": "NAC",
+                  "t2": "NAC",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "total": "CONST(0)"
+                }
+              },
+              {
+                "block": "B3",
+                "changed": true,
+                "in": {
+                  "i": "NAC",
+                  "n": "NAC",
+                  "scratch": "NAC",
+                  "t1": "NAC",
+                  "t2": "NAC",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "total": "CONST(0)"
+                },
+                "iteration": 6,
+                "out": {
+                  "i": "NAC",
+                  "n": "NAC",
+                  "scratch": "NAC",
+                  "t1": "NAC",
+                  "t2": "NAC",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "total": "NAC"
+                }
+              },
+              {
+                "block": "B4",
+                "changed": true,
+                "in": {
+                  "i": "NAC",
+                  "n": "NAC",
+                  "scratch": "NAC",
+                  "t1": "NAC",
+                  "t2": "NAC",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "total": "CONST(0)"
+                },
+                "iteration": 7,
+                "out": {
+                  "i": "NAC",
+                  "n": "NAC",
+                  "scratch": "NAC",
+                  "t1": "NAC",
+                  "t2": "NAC",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "total": "CONST(0)"
+                }
+              },
+              {
+                "block": "B2",
+                "changed": true,
+                "in": {
+                  "i": "NAC",
+                  "n": "NAC",
+                  "scratch": "NAC",
+                  "t1": "NAC",
+                  "t2": "NAC",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "total": "NAC"
+                },
+                "iteration": 8,
+                "out": {
+                  "i": "NAC",
+                  "n": "NAC",
+                  "scratch": "NAC",
+                  "t1": "NAC",
+                  "t2": "NAC",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "total": "NAC"
+                }
+              },
+              {
+                "block": "B3",
+                "changed": true,
+                "in": {
+                  "i": "NAC",
+                  "n": "NAC",
+                  "scratch": "NAC",
+                  "t1": "NAC",
+                  "t2": "NAC",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "total": "NAC"
+                },
+                "iteration": 9,
+                "out": {
+                  "i": "NAC",
+                  "n": "NAC",
+                  "scratch": "NAC",
+                  "t1": "NAC",
+                  "t2": "NAC",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "total": "NAC"
+                }
+              },
+              {
+                "block": "B4",
+                "changed": true,
+                "in": {
+                  "i": "NAC",
+                  "n": "NAC",
+                  "scratch": "NAC",
+                  "t1": "NAC",
+                  "t2": "NAC",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "total": "NAC"
+                },
+                "iteration": 10,
+                "out": {
+                  "i": "NAC",
+                  "n": "NAC",
+                  "scratch": "NAC",
+                  "t1": "NAC",
+                  "t2": "NAC",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "total": "NAC"
+                }
+              },
+              {
+                "block": "B2",
+                "changed": false,
+                "in": {
+                  "i": "NAC",
+                  "n": "NAC",
+                  "scratch": "NAC",
+                  "t1": "NAC",
+                  "t2": "NAC",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "total": "NAC"
+                },
+                "iteration": 11,
+                "out": {
+                  "i": "NAC",
+                  "n": "NAC",
+                  "scratch": "NAC",
+                  "t1": "NAC",
+                  "t2": "NAC",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "total": "NAC"
+                }
+              }
+            ],
+            "trace_truncated": false
+          },
+          "liveness": {
+            "direction": "backward",
+            "iterations": 8,
+            "steps": [
+              {
+                "block": "B4",
+                "changed": true,
+                "in": [
+                  "total"
+                ],
+                "iteration": 1,
+                "out": []
+              },
+              {
+                "block": "B3",
+                "changed": true,
+                "in": [
+                  "i",
+                  "total"
+                ],
+                "iteration": 2,
+                "out": []
+              },
+              {
+                "block": "B2",
+                "changed": true,
+                "in": [
+                  "i",
+                  "n",
+                  "total"
+                ],
+                "iteration": 3,
+                "out": [
+                  "i",
+                  "total"
+                ]
+              },
+              {
+                "block": "B1",
+                "changed": true,
+                "in": [
+                  "n"
+                ],
+                "iteration": 4,
+                "out": [
+                  "i",
+                  "n",
+                  "total"
+                ]
+              },
+              {
+                "block": "B3",
+                "changed": true,
+                "in": [
+                  "i",
+                  "n",
+                  "total"
+                ],
+                "iteration": 5,
+                "out": [
+                  "i",
+                  "n",
+                  "total"
+                ]
+              },
+              {
+                "block": "B2",
+                "changed": true,
+                "in": [
+                  "i",
+                  "n",
+                  "total"
+                ],
+                "iteration": 6,
+                "out": [
+                  "i",
+                  "n",
+                  "total"
+                ]
+              },
+              {
+                "block": "B3",
+                "changed": false,
+                "in": [
+                  "i",
+                  "n",
+                  "total"
+                ],
+                "iteration": 7,
+                "out": [
+                  "i",
+                  "n",
+                  "total"
+                ]
+              },
+              {
+                "block": "B1",
+                "changed": false,
+                "in": [
+                  "n"
+                ],
+                "iteration": 8,
+                "out": [
+                  "i",
+                  "n",
+                  "total"
+                ]
+              }
+            ],
+            "trace_truncated": false
+          },
+          "reaching": {
+            "direction": "forward",
+            "iterations": 8,
+            "steps": [
+              {
+                "block": "B1",
+                "changed": true,
+                "in": [
+                  "PARAM(n)"
+                ],
+                "iteration": 1,
+                "out": [
+                  "PARAM(n)",
+                  "i@i2",
+                  "total@i1"
+                ]
+              },
+              {
+                "block": "B2",
+                "changed": true,
+                "in": [
+                  "PARAM(n)",
+                  "i@i2",
+                  "total@i1"
+                ],
+                "iteration": 2,
+                "out": [
+                  "PARAM(n)",
+                  "i@i2",
+                  "t1@i4",
+                  "total@i1"
+                ]
+              },
+              {
+                "block": "B3",
+                "changed": true,
+                "in": [
+                  "PARAM(n)",
+                  "i@i2",
+                  "t1@i4",
+                  "total@i1"
+                ],
+                "iteration": 3,
+                "out": [
+                  "PARAM(n)",
+                  "i@i12",
+                  "scratch@i7",
+                  "t1@i4",
+                  "t2@i6",
+                  "t3@i8",
+                  "t4@i11",
+                  "total@i9"
+                ]
+              },
+              {
+                "block": "B4",
+                "changed": true,
+                "in": [
+                  "PARAM(n)",
+                  "i@i2",
+                  "t1@i4",
+                  "total@i1"
+                ],
+                "iteration": 4,
+                "out": [
+                  "PARAM(n)",
+                  "i@i2",
+                  "t1@i4",
+                  "total@i1"
+                ]
+              },
+              {
+                "block": "B2",
+                "changed": true,
+                "in": [
+                  "PARAM(n)",
+                  "i@i12",
+                  "i@i2",
+                  "scratch@i7",
+                  "t1@i4",
+                  "t2@i6",
+                  "t3@i8",
+                  "t4@i11",
+                  "total@i1",
+                  "total@i9"
+                ],
+                "iteration": 5,
+                "out": [
+                  "PARAM(n)",
+                  "i@i12",
+                  "i@i2",
+                  "scratch@i7",
+                  "t1@i4",
+                  "t2@i6",
+                  "t3@i8",
+                  "t4@i11",
+                  "total@i1",
+                  "total@i9"
+                ]
+              },
+              {
+                "block": "B3",
+                "changed": true,
+                "in": [
+                  "PARAM(n)",
+                  "i@i12",
+                  "i@i2",
+                  "scratch@i7",
+                  "t1@i4",
+                  "t2@i6",
+                  "t3@i8",
+                  "t4@i11",
+                  "total@i1",
+                  "total@i9"
+                ],
+                "iteration": 6,
+                "out": [
+                  "PARAM(n)",
+                  "i@i12",
+                  "scratch@i7",
+                  "t1@i4",
+                  "t2@i6",
+                  "t3@i8",
+                  "t4@i11",
+                  "total@i9"
+                ]
+              },
+              {
+                "block": "B4",
+                "changed": true,
+                "in": [
+                  "PARAM(n)",
+                  "i@i12",
+                  "i@i2",
+                  "scratch@i7",
+                  "t1@i4",
+                  "t2@i6",
+                  "t3@i8",
+                  "t4@i11",
+                  "total@i1",
+                  "total@i9"
+                ],
+                "iteration": 7,
+                "out": [
+                  "PARAM(n)",
+                  "i@i12",
+                  "i@i2",
+                  "scratch@i7",
+                  "t1@i4",
+                  "t2@i6",
+                  "t3@i8",
+                  "t4@i11",
+                  "total@i1",
+                  "total@i9"
+                ]
+              },
+              {
+                "block": "B2",
+                "changed": false,
+                "in": [
+                  "PARAM(n)",
+                  "i@i12",
+                  "i@i2",
+                  "scratch@i7",
+                  "t1@i4",
+                  "t2@i6",
+                  "t3@i8",
+                  "t4@i11",
+                  "total@i1",
+                  "total@i9"
+                ],
+                "iteration": 8,
+                "out": [
+                  "PARAM(n)",
+                  "i@i12",
+                  "i@i2",
+                  "scratch@i7",
+                  "t1@i4",
+                  "t2@i6",
+                  "t3@i8",
+                  "t4@i11",
+                  "total@i1",
+                  "total@i9"
+                ]
+              }
+            ],
+            "trace_truncated": false
+          }
+        },
         "uninitialized_reads": []
       },
       "main": {
@@ -4932,6 +5690,68 @@
             "t5@i9"
           ]
         },
+        "traces": {
+          "constant_propagation": {
+            "direction": "forward",
+            "iterations": 1,
+            "steps": [
+              {
+                "block": "B1",
+                "changed": true,
+                "in": {
+                  "t1": "NAC",
+                  "t2": "NAC",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "t5": "NAC"
+                },
+                "iteration": 1,
+                "out": {
+                  "t1": "NAC",
+                  "t2": "NAC",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "t5": "NAC"
+                }
+              }
+            ],
+            "trace_truncated": false
+          },
+          "liveness": {
+            "direction": "backward",
+            "iterations": 1,
+            "steps": [
+              {
+                "block": "B1",
+                "changed": false,
+                "in": [],
+                "iteration": 1,
+                "out": []
+              }
+            ],
+            "trace_truncated": false
+          },
+          "reaching": {
+            "direction": "forward",
+            "iterations": 1,
+            "steps": [
+              {
+                "block": "B1",
+                "changed": true,
+                "in": [],
+                "iteration": 1,
+                "out": [
+                  "t1@i1",
+                  "t2@i3",
+                  "t3@i5",
+                  "t4@i7",
+                  "t5@i9"
+                ]
+              }
+            ],
+            "trace_truncated": false
+          }
+        },
         "uninitialized_reads": []
       },
       "overwritten_before_read": {
@@ -5082,6 +5902,56 @@
             "a@i3"
           ]
         },
+        "traces": {
+          "constant_propagation": {
+            "direction": "forward",
+            "iterations": 1,
+            "steps": [
+              {
+                "block": "B1",
+                "changed": true,
+                "in": {
+                  "a": "NAC"
+                },
+                "iteration": 1,
+                "out": {
+                  "a": "CONST(3)"
+                }
+              }
+            ],
+            "trace_truncated": false
+          },
+          "liveness": {
+            "direction": "backward",
+            "iterations": 1,
+            "steps": [
+              {
+                "block": "B1",
+                "changed": false,
+                "in": [],
+                "iteration": 1,
+                "out": []
+              }
+            ],
+            "trace_truncated": false
+          },
+          "reaching": {
+            "direction": "forward",
+            "iterations": 1,
+            "steps": [
+              {
+                "block": "B1",
+                "changed": true,
+                "in": [],
+                "iteration": 1,
+                "out": [
+                  "a@i3"
+                ]
+              }
+            ],
+            "trace_truncated": false
+          }
+        },
         "uninitialized_reads": []
       },
       "self_assignment": {
@@ -5230,6 +6100,63 @@
             "PARAM(x)",
             "same@i2"
           ]
+        },
+        "traces": {
+          "constant_propagation": {
+            "direction": "forward",
+            "iterations": 1,
+            "steps": [
+              {
+                "block": "B1",
+                "changed": true,
+                "in": {
+                  "same": "NAC",
+                  "x": "NAC"
+                },
+                "iteration": 1,
+                "out": {
+                  "same": "NAC",
+                  "x": "NAC"
+                }
+              }
+            ],
+            "trace_truncated": false
+          },
+          "liveness": {
+            "direction": "backward",
+            "iterations": 1,
+            "steps": [
+              {
+                "block": "B1",
+                "changed": true,
+                "in": [
+                  "x"
+                ],
+                "iteration": 1,
+                "out": []
+              }
+            ],
+            "trace_truncated": false
+          },
+          "reaching": {
+            "direction": "forward",
+            "iterations": 1,
+            "steps": [
+              {
+                "block": "B1",
+                "changed": true,
+                "in": [
+                  "PARAM(x)"
+                ],
+                "iteration": 1,
+                "out": [
+                  "PARAM(x)",
+                  "same@i2"
+                ]
+              }
+            ],
+            "trace_truncated": false
+          }
         },
         "uninitialized_reads": []
       }
@@ -8800,6 +9727,38 @@
       ],
       "removed_instructions": 7,
       "rounds": 3,
+      "skipped": [
+        {
+          "kind": "pass_found_nothing",
+          "reason": "constant-folding found no pattern it could rewrite (compute instructions with literal operands at compile time)",
+          "target": "constant-folding"
+        },
+        {
+          "kind": "pass_found_nothing",
+          "reason": "branch-folding found no pattern it could rewrite (resolve branches on a constant condition)",
+          "target": "branch-folding"
+        },
+        {
+          "kind": "pass_found_nothing",
+          "reason": "unreachable-blocks found no pattern it could rewrite (delete blocks no path from the function entry reaches)",
+          "target": "unreachable-blocks"
+        },
+        {
+          "kind": "unverified_entry",
+          "reason": "`dead_in_branch` takes parameters, and the oracle has no argument values to give it, so it was not run",
+          "target": "dead_in_branch"
+        },
+        {
+          "kind": "unverified_entry",
+          "reason": "`dead_loop_value` takes parameters, and the oracle has no argument values to give it, so it was not run",
+          "target": "dead_loop_value"
+        },
+        {
+          "kind": "unverified_entry",
+          "reason": "`self_assignment` takes parameters, and the oracle has no argument values to give it, so it was not run",
+          "target": "self_assignment"
+        }
+      ],
       "stats": {
         "after": {
           "functions": 5,
@@ -11478,5 +12437,6 @@
       }
     ]
   },
-  "source": "/* Dead assignments: writes to variables that are never read afterwards.\n *\n * Each variable below is assigned and then either overwritten or never used, so a dead\n * store pass has something real to remove without changing the result.\n */\n\nint overwritten_before_read() {\n    int a = 1;\n    a = 2;\n    a = 3;\n    return a;\n}\n\nint dead_in_branch(int flag) {\n    int used = 0;\n    if (flag) {\n        int only_here = 10;\n        used = 1;\n    } else {\n        used = 2;\n    }\n    return used;\n}\n\nint dead_loop_value(int n) {\n    int total = 0;\n    for (int i = 0; i < n; i = i + 1) {\n        int scratch = i * 2;\n        total = total + i;\n    }\n    return total;\n}\n\nint self_assignment(int x) {\n    int same = x;\n    same = same;\n    return same;\n}\n\nint main() {\n    printf(\"overwritten_before_read() = %d\\n\", overwritten_before_read());\n    printf(\"dead_in_branch(1) = %d\\n\", dead_in_branch(1));\n    printf(\"dead_in_branch(0) = %d\\n\", dead_in_branch(0));\n    printf(\"dead_loop_value(5) = %d\\n\", dead_loop_value(5));\n    printf(\"self_assignment(7) = %d\\n\", self_assignment(7));\n    return 0;\n}"
+  "source": "/* Dead assignments: writes to variables that are never read afterwards.\n *\n * Each variable below is assigned and then either overwritten or never used, so a dead\n * store pass has something real to remove without changing the result.\n */\n\nint overwritten_before_read() {\n    int a = 1;\n    a = 2;\n    a = 3;\n    return a;\n}\n\nint dead_in_branch(int flag) {\n    int used = 0;\n    if (flag) {\n        int only_here = 10;\n        used = 1;\n    } else {\n        used = 2;\n    }\n    return used;\n}\n\nint dead_loop_value(int n) {\n    int total = 0;\n    for (int i = 0; i < n; i = i + 1) {\n        int scratch = i * 2;\n        total = total + i;\n    }\n    return total;\n}\n\nint self_assignment(int x) {\n    int same = x;\n    same = same;\n    return same;\n}\n\nint main() {\n    printf(\"overwritten_before_read() = %d\\n\", overwritten_before_read());\n    printf(\"dead_in_branch(1) = %d\\n\", dead_in_branch(1));\n    printf(\"dead_in_branch(0) = %d\\n\", dead_in_branch(0));\n    printf(\"dead_loop_value(5) = %d\\n\", dead_loop_value(5));\n    printf(\"self_assignment(7) = %d\\n\", self_assignment(7));\n    return 0;\n}",
+  "stdin": ""
 }

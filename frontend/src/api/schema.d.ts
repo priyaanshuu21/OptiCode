@@ -28,6 +28,56 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/examples": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The curated MiniC program library
+         * @description Every example's metadata, without the source text.
+         *
+         *     The listing is separate from the detail route so the menu can be built without
+         *     downloading two dozen programs, and so a request for one example's text is a request
+         *     for that example and nothing else.
+         */
+        get: operations["list_examples_api_examples_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/examples/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One example's metadata and source
+         * @description The program behind one example name.
+         *
+         *     Three failure modes, three status codes, because they mean different things to a
+         *     client: a name that is not a slug is a malformed request (400), a well-formed name
+         *     that is not in the manifest is a miss (404), and a manifest entry that points outside
+         *     the examples directory is a fault in this deployment (500). Reporting all three as 404
+         *     would hide the last one, which is the one somebody has to fix.
+         */
+        get: operations["read_example_api_examples__name__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -142,6 +192,83 @@ export interface components {
             /** Stage */
             stage: string;
         };
+        /**
+         * ExampleDetailModel
+         * @description A summary plus the program text and the input it expects on stdin.
+         */
+        ExampleDetailModel: {
+            /** Expected Diagnostics */
+            expected_diagnostics?: string[];
+            /** Features */
+            features?: string[];
+            /** File */
+            file: string;
+            /** Lines */
+            lines: number;
+            /**
+             * Name
+             * @description Slug used in the detail URL
+             */
+            name: string;
+            /** Source */
+            source: string;
+            /** Stdin */
+            stdin: string;
+            /**
+             * Suggested Mode
+             * @default analyze
+             * @enum {string}
+             */
+            suggested_mode: "analyze" | "optimize";
+            /** Summary */
+            summary: string;
+            /** Tags */
+            tags?: string[];
+            /** Title */
+            title: string;
+            /** Valid */
+            valid: boolean;
+        };
+        /** ExampleListResponse */
+        ExampleListResponse: {
+            /** Count */
+            count: number;
+            /** Examples */
+            examples: components["schemas"]["ExampleSummaryModel"][];
+            /** Invalid Count */
+            invalid_count: number;
+        };
+        /**
+         * ExampleSummaryModel
+         * @description One curated program, without its text. What the menu is built from.
+         */
+        ExampleSummaryModel: {
+            /** Expected Diagnostics */
+            expected_diagnostics?: string[];
+            /** Features */
+            features?: string[];
+            /** File */
+            file: string;
+            /**
+             * Name
+             * @description Slug used in the detail URL
+             */
+            name: string;
+            /**
+             * Suggested Mode
+             * @default analyze
+             * @enum {string}
+             */
+            suggested_mode: "analyze" | "optimize";
+            /** Summary */
+            summary: string;
+            /** Tags */
+            tags?: string[];
+            /** Title */
+            title: string;
+            /** Valid */
+            valid: boolean;
+        };
         /** HealthResponse */
         HealthResponse: {
             /** Stages */
@@ -231,6 +358,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CompileResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_examples_api_examples_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExampleListResponse"];
+                };
+            };
+        };
+    };
+    read_example_api_examples__name__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExampleDetailModel"];
                 };
             };
             /** @description Validation Error */

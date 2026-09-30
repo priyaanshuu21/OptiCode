@@ -19,22 +19,57 @@ export interface Fixture {
   source: string
   request: CompileRequest
   response: CompileResponse
+  /** The stdin the fixture was recorded with, so a replay sends the same input. */
+  stdin: string
 }
 
-export type FixtureName = 'hello' | 'loops' | 'io' | 'mixed_types' | 'dead_code' | 'error'
+export type FixtureName =
+  | 'hello'
+  | 'loops'
+  | 'io'
+  | 'mixed_types'
+  | 'dead_code'
+  | 'unreachable'
+  | 'folded'
+  | 'error'
 
-const NAMES: FixtureName[] = ['hello', 'loops', 'io', 'mixed_types', 'dead_code', 'error']
+/**
+ * Every case, in pipeline order.
+ *
+ * The list is the coverage argument: each of these produces at least one payload element none of
+ * the others do — `unreachable` has conditionally unreachable blocks, `folded` has a real
+ * before/after rewrite, `error` is a rejected program — so together they reach every branch of
+ * every view. Adding a view without a fixture that exercises it is how a view ships broken.
+ */
+const NAMES: FixtureName[] = [
+  'hello',
+  'loops',
+  'io',
+  'mixed_types',
+  'dead_code',
+  'unreachable',
+  'folded',
+  'error',
+]
 
 export function loadFixture(name: FixtureName): Fixture {
   const raw = readFileSync(join(fixtureDir, `${name}.json`), 'utf8')
   const parsed = JSON.parse(raw) as {
     source: string
+    mode: string
+    stdin: string
     request: CompileRequest | null
     response: CompileResponse
   }
-  const mode = parsed.response.mode as 'analyze' | 'optimize'
-  const request: CompileRequest = (parsed.request ?? { source: parsed.source, mode }) as CompileRequest
-  return { source: parsed.source, request, response: parsed.response }
+  const mode = (parsed.response.mode ?? parsed.mode) as 'analyze' | 'optimize'
+  // The generator records what it sent, so the request is rebuilt from the response's own mode
+  // rather than from a second copy of it that could drift.
+  const request: CompileRequest = (parsed.request ?? {
+    source: parsed.source,
+    mode,
+    stdin: parsed.stdin || null,
+  }) as CompileRequest
+  return { source: parsed.source, request, response: parsed.response, stdin: parsed.stdin ?? '' }
 }
 
 export function loadFixtures(): { name: FixtureName; fixture: Fixture }[] {

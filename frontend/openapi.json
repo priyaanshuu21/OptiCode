@@ -264,6 +264,177 @@
         "title": "DiagnosticModel",
         "type": "object"
       },
+      "ExampleDetailModel": {
+        "description": "A summary plus the program text and the input it expects on stdin.",
+        "properties": {
+          "expected_diagnostics": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Expected Diagnostics",
+            "type": "array"
+          },
+          "features": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Features",
+            "type": "array"
+          },
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "lines": {
+            "title": "Lines",
+            "type": "integer"
+          },
+          "name": {
+            "description": "Slug used in the detail URL",
+            "title": "Name",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "stdin": {
+            "title": "Stdin",
+            "type": "string"
+          },
+          "suggested_mode": {
+            "default": "analyze",
+            "enum": [
+              "analyze",
+              "optimize"
+            ],
+            "title": "Suggested Mode",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "valid": {
+            "title": "Valid",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "title",
+          "file",
+          "valid",
+          "summary",
+          "source",
+          "stdin",
+          "lines"
+        ],
+        "title": "ExampleDetailModel",
+        "type": "object"
+      },
+      "ExampleListResponse": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "examples": {
+            "items": {
+              "$ref": "#/components/schemas/ExampleSummaryModel"
+            },
+            "title": "Examples",
+            "type": "array"
+          },
+          "invalid_count": {
+            "title": "Invalid Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "examples",
+          "count",
+          "invalid_count"
+        ],
+        "title": "ExampleListResponse",
+        "type": "object"
+      },
+      "ExampleSummaryModel": {
+        "description": "One curated program, without its text. What the menu is built from.",
+        "properties": {
+          "expected_diagnostics": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Expected Diagnostics",
+            "type": "array"
+          },
+          "features": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Features",
+            "type": "array"
+          },
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "name": {
+            "description": "Slug used in the detail URL",
+            "title": "Name",
+            "type": "string"
+          },
+          "suggested_mode": {
+            "default": "analyze",
+            "enum": [
+              "analyze",
+              "optimize"
+            ],
+            "title": "Suggested Mode",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "valid": {
+            "title": "Valid",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "title",
+          "file",
+          "valid",
+          "summary"
+        ],
+        "title": "ExampleSummaryModel",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -444,6 +615,71 @@
         "summary": "Compile Endpoint",
         "tags": [
           "compile"
+        ]
+      }
+    },
+    "/api/examples": {
+      "get": {
+        "description": "Every example's metadata, without the source text.\n\nThe listing is separate from the detail route so the menu can be built without\ndownloading two dozen programs, and so a request for one example's text is a request\nfor that example and nothing else.",
+        "operationId": "list_examples_api_examples_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExampleListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "The curated MiniC program library",
+        "tags": [
+          "examples"
+        ]
+      }
+    },
+    "/api/examples/{name}": {
+      "get": {
+        "description": "The program behind one example name.\n\nThree failure modes, three status codes, because they mean different things to a\nclient: a name that is not a slug is a malformed request (400), a well-formed name\nthat is not in the manifest is a miss (404), and a manifest entry that points outside\nthe examples directory is a fault in this deployment (500). Reporting all three as 404\nwould hide the last one, which is the one somebody has to fix.",
+        "operationId": "read_example_api_examples__name__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExampleDetailModel"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "One example's metadata and source",
+        "tags": [
+          "examples"
         ]
       }
     },

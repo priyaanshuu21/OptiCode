@@ -12,12 +12,17 @@ if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
 REPO_ROOT = BACKEND_ROOT.parent
+#: The curated corpus, at the repository root rather than inside the package: it is something a
+#: person browses and a client downloads, not an implementation detail. ``valid/`` holds the
+#: programs that compile, ``invalid/`` the ones that are meant to fail.
 EXAMPLES_DIR = REPO_ROOT / "examples"
+VALID_EXAMPLES_DIR = EXAMPLES_DIR / "valid"
+INVALID_EXAMPLES_DIR = EXAMPLES_DIR / "invalid"
 
 
 @pytest.fixture(scope="session")
 def examples_dir() -> Path:
-    return EXAMPLES_DIR
+    return VALID_EXAMPLES_DIR
 
 
 @pytest.fixture(scope="session")

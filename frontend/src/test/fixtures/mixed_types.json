@@ -5323,6 +5323,670 @@
             "zero@i29"
           ]
         },
+        "traces": {
+          "constant_propagation": {
+            "direction": "forward",
+            "iterations": 7,
+            "steps": [
+              {
+                "block": "B1",
+                "changed": true,
+                "in": {
+                  "comparisons": "NAC",
+                  "doubled": "NAC",
+                  "flag": "NAC",
+                  "mixed": "NAC",
+                  "part": "NAC",
+                  "t1": "NAC",
+                  "t10": "NAC",
+                  "t11": "NAC",
+                  "t2": "NAC",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "t5": "NAC",
+                  "t6": "NAC",
+                  "t7": "NAC",
+                  "t8": "NAC",
+                  "t9": "NAC",
+                  "whole_2": "NAC",
+                  "zero": "NAC"
+                },
+                "iteration": 1,
+                "out": {
+                  "comparisons": "CONST(0)",
+                  "doubled": "NAC",
+                  "flag": "NAC",
+                  "mixed": "CONST(7.5)",
+                  "part": "CONST(0.5)",
+                  "t1": "CONST(7.0)",
+                  "t10": "NAC",
+                  "t11": "NAC",
+                  "t2": "CONST(7.5)",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "t5": "CONST(1)",
+                  "t6": "NAC",
+                  "t7": "NAC",
+                  "t8": "NAC",
+                  "t9": "NAC",
+                  "whole_2": "CONST(7)",
+                  "zero": "NAC"
+                }
+              },
+              {
+                "block": "B2",
+                "changed": true,
+                "in": {
+                  "comparisons": "CONST(0)",
+                  "doubled": "NAC",
+                  "flag": "NAC",
+                  "mixed": "CONST(7.5)",
+                  "part": "CONST(0.5)",
+                  "t1": "CONST(7.0)",
+                  "t10": "NAC",
+                  "t11": "NAC",
+                  "t2": "CONST(7.5)",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "t5": "CONST(1)",
+                  "t6": "NAC",
+                  "t7": "NAC",
+                  "t8": "NAC",
+                  "t9": "NAC",
+                  "whole_2": "CONST(7)",
+                  "zero": "NAC"
+                },
+                "iteration": 2,
+                "out": {
+                  "comparisons": "CONST(1)",
+                  "doubled": "NAC",
+                  "flag": "NAC",
+                  "mixed": "CONST(7.5)",
+                  "part": "CONST(0.5)",
+                  "t1": "CONST(7.0)",
+                  "t10": "NAC",
+                  "t11": "NAC",
+                  "t2": "CONST(7.5)",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "t5": "CONST(1)",
+                  "t6": "CONST(1)",
+                  "t7": "NAC",
+                  "t8": "NAC",
+                  "t9": "NAC",
+                  "whole_2": "CONST(7)",
+                  "zero": "NAC"
+                }
+              },
+              {
+                "block": "B3",
+                "changed": true,
+                "in": {
+                  "comparisons": "NAC",
+                  "doubled": "NAC",
+                  "flag": "NAC",
+                  "mixed": "CONST(7.5)",
+                  "part": "CONST(0.5)",
+                  "t1": "CONST(7.0)",
+                  "t10": "NAC",
+                  "t11": "NAC",
+                  "t2": "CONST(7.5)",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "t5": "CONST(1)",
+                  "t6": "NAC",
+                  "t7": "NAC",
+                  "t8": "NAC",
+                  "t9": "NAC",
+                  "whole_2": "CONST(7)",
+                  "zero": "NAC"
+                },
+                "iteration": 3,
+                "out": {
+                  "comparisons": "NAC",
+                  "doubled": "NAC",
+                  "flag": "NAC",
+                  "mixed": "CONST(7.5)",
+                  "part": "CONST(0.5)",
+                  "t1": "CONST(7.0)",
+                  "t10": "NAC",
+                  "t11": "NAC",
+                  "t2": "CONST(7.5)",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "t5": "CONST(1)",
+                  "t6": "NAC",
+                  "t7": "CONST(0)",
+                  "t8": "NAC",
+                  "t9": "NAC",
+                  "whole_2": "CONST(7)",
+                  "zero": "NAC"
+                }
+              },
+              {
+                "block": "B4",
+                "changed": true,
+                "in": {
+                  "comparisons": "NAC",
+                  "doubled": "NAC",
+                  "flag": "NAC",
+                  "mixed": "CONST(7.5)",
+                  "part": "CONST(0.5)",
+                  "t1": "CONST(7.0)",
+                  "t10": "NAC",
+                  "t11": "NAC",
+                  "t2": "CONST(7.5)",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "t5": "CONST(1)",
+                  "t6": "NAC",
+                  "t7": "CONST(0)",
+                  "t8": "NAC",
+                  "t9": "NAC",
+                  "whole_2": "CONST(7)",
+                  "zero": "NAC"
+                },
+                "iteration": 4,
+                "out": {
+                  "comparisons": "NAC",
+                  "doubled": "NAC",
+                  "flag": "NAC",
+                  "mixed": "CONST(7.5)",
+                  "part": "CONST(0.5)",
+                  "t1": "CONST(7.0)",
+                  "t10": "NAC",
+                  "t11": "NAC",
+                  "t2": "CONST(7.5)",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "t5": "CONST(1)",
+                  "t6": "NAC",
+                  "t7": "CONST(0)",
+                  "t8": "NAC",
+                  "t9": "NAC",
+                  "whole_2": "CONST(7)",
+                  "zero": "NAC"
+                }
+              },
+              {
+                "block": "B5",
+                "changed": true,
+                "in": {
+                  "comparisons": "NAC",
+                  "doubled": "NAC",
+                  "flag": "NAC",
+                  "mixed": "CONST(7.5)",
+                  "part": "CONST(0.5)",
+                  "t1": "CONST(7.0)",
+                  "t10": "NAC",
+                  "t11": "NAC",
+                  "t2": "CONST(7.5)",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "t5": "CONST(1)",
+                  "t6": "NAC",
+                  "t7": "CONST(0)",
+                  "t8": "NAC",
+                  "t9": "NAC",
+                  "whole_2": "CONST(7)",
+                  "zero": "NAC"
+                },
+                "iteration": 5,
+                "out": {
+                  "comparisons": "NAC",
+                  "doubled": "NAC",
+                  "flag": "NAC",
+                  "mixed": "CONST(7.5)",
+                  "part": "CONST(0.5)",
+                  "t1": "CONST(7.0)",
+                  "t10": "NAC",
+                  "t11": "NAC",
+                  "t2": "CONST(7.5)",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "t5": "CONST(1)",
+                  "t6": "NAC",
+                  "t7": "CONST(0)",
+                  "t8": "NAC",
+                  "t9": "CONST(1)",
+                  "whole_2": "CONST(7)",
+                  "zero": "NAC"
+                }
+              },
+              {
+                "block": "B6",
+                "changed": true,
+                "in": {
+                  "comparisons": "NAC",
+                  "doubled": "NAC",
+                  "flag": "NAC",
+                  "mixed": "CONST(7.5)",
+                  "part": "CONST(0.5)",
+                  "t1": "CONST(7.0)",
+                  "t10": "NAC",
+                  "t11": "NAC",
+                  "t2": "CONST(7.5)",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "t5": "CONST(1)",
+                  "t6": "NAC",
+                  "t7": "CONST(0)",
+                  "t8": "NAC",
+                  "t9": "CONST(1)",
+                  "whole_2": "CONST(7)",
+                  "zero": "NAC"
+                },
+                "iteration": 6,
+                "out": {
+                  "comparisons": "NAC",
+                  "doubled": "NAC",
+                  "flag": "NAC",
+                  "mixed": "CONST(7.5)",
+                  "part": "CONST(0.5)",
+                  "t1": "CONST(7.0)",
+                  "t10": "NAC",
+                  "t11": "NAC",
+                  "t2": "CONST(7.5)",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "t5": "CONST(1)",
+                  "t6": "NAC",
+                  "t7": "CONST(0)",
+                  "t8": "NAC",
+                  "t9": "CONST(1)",
+                  "whole_2": "CONST(7)",
+                  "zero": "NAC"
+                }
+              },
+              {
+                "block": "B7",
+                "changed": true,
+                "in": {
+                  "comparisons": "NAC",
+                  "doubled": "NAC",
+                  "flag": "NAC",
+                  "mixed": "CONST(7.5)",
+                  "part": "CONST(0.5)",
+                  "t1": "CONST(7.0)",
+                  "t10": "NAC",
+                  "t11": "NAC",
+                  "t2": "CONST(7.5)",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "t5": "CONST(1)",
+                  "t6": "NAC",
+                  "t7": "CONST(0)",
+                  "t8": "NAC",
+                  "t9": "CONST(1)",
+                  "whole_2": "CONST(7)",
+                  "zero": "NAC"
+                },
+                "iteration": 7,
+                "out": {
+                  "comparisons": "NAC",
+                  "doubled": "NAC",
+                  "flag": "CONST(1)",
+                  "mixed": "CONST(7.5)",
+                  "part": "CONST(0.5)",
+                  "t1": "CONST(7.0)",
+                  "t10": "NAC",
+                  "t11": "CONST(1)",
+                  "t2": "CONST(7.5)",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "t5": "CONST(1)",
+                  "t6": "NAC",
+                  "t7": "CONST(0)",
+                  "t8": "NAC",
+                  "t9": "CONST(1)",
+                  "whole_2": "CONST(7)",
+                  "zero": "CONST(0.0)"
+                }
+              }
+            ],
+            "trace_truncated": false
+          },
+          "liveness": {
+            "direction": "backward",
+            "iterations": 7,
+            "steps": [
+              {
+                "block": "B7",
+                "changed": true,
+                "in": [
+                  "comparisons"
+                ],
+                "iteration": 1,
+                "out": []
+              },
+              {
+                "block": "B6",
+                "changed": true,
+                "in": [
+                  "comparisons"
+                ],
+                "iteration": 2,
+                "out": [
+                  "comparisons"
+                ]
+              },
+              {
+                "block": "B5",
+                "changed": true,
+                "in": [
+                  "comparisons",
+                  "mixed"
+                ],
+                "iteration": 3,
+                "out": [
+                  "comparisons"
+                ]
+              },
+              {
+                "block": "B4",
+                "changed": true,
+                "in": [
+                  "comparisons",
+                  "mixed"
+                ],
+                "iteration": 4,
+                "out": [
+                  "comparisons",
+                  "mixed"
+                ]
+              },
+              {
+                "block": "B3",
+                "changed": true,
+                "in": [
+                  "comparisons",
+                  "mixed"
+                ],
+                "iteration": 5,
+                "out": [
+                  "comparisons",
+                  "mixed"
+                ]
+              },
+              {
+                "block": "B2",
+                "changed": true,
+                "in": [
+                  "comparisons",
+                  "mixed"
+                ],
+                "iteration": 6,
+                "out": [
+                  "comparisons",
+                  "mixed"
+                ]
+              },
+              {
+                "block": "B1",
+                "changed": true,
+                "in": [],
+                "iteration": 7,
+                "out": [
+                  "comparisons",
+                  "mixed"
+                ]
+              }
+            ],
+            "trace_truncated": false
+          },
+          "reaching": {
+            "direction": "forward",
+            "iterations": 7,
+            "steps": [
+              {
+                "block": "B1",
+                "changed": true,
+                "in": [],
+                "iteration": 1,
+                "out": [
+                  "comparisons@i12",
+                  "doubled@i8",
+                  "mixed@i5",
+                  "part@i2",
+                  "t1@i3",
+                  "t2@i4",
+                  "t3@i7",
+                  "t4@i10",
+                  "t5@i13",
+                  "whole_2@i1"
+                ]
+              },
+              {
+                "block": "B2",
+                "changed": true,
+                "in": [
+                  "comparisons@i12",
+                  "doubled@i8",
+                  "mixed@i5",
+                  "part@i2",
+                  "t1@i3",
+                  "t2@i4",
+                  "t3@i7",
+                  "t4@i10",
+                  "t5@i13",
+                  "whole_2@i1"
+                ],
+                "iteration": 2,
+                "out": [
+                  "comparisons@i16",
+                  "doubled@i8",
+                  "mixed@i5",
+                  "part@i2",
+                  "t1@i3",
+                  "t2@i4",
+                  "t3@i7",
+                  "t4@i10",
+                  "t5@i13",
+                  "t6@i15",
+                  "whole_2@i1"
+                ]
+              },
+              {
+                "block": "B3",
+                "changed": true,
+                "in": [
+                  "comparisons@i12",
+                  "comparisons@i16",
+                  "doubled@i8",
+                  "mixed@i5",
+                  "part@i2",
+                  "t1@i3",
+                  "t2@i4",
+                  "t3@i7",
+                  "t4@i10",
+                  "t5@i13",
+                  "t6@i15",
+                  "whole_2@i1"
+                ],
+                "iteration": 3,
+                "out": [
+                  "comparisons@i12",
+                  "comparisons@i16",
+                  "doubled@i8",
+                  "mixed@i5",
+                  "part@i2",
+                  "t1@i3",
+                  "t2@i4",
+                  "t3@i7",
+                  "t4@i10",
+                  "t5@i13",
+                  "t6@i15",
+                  "t7@i18",
+                  "whole_2@i1"
+                ]
+              },
+              {
+                "block": "B4",
+                "changed": true,
+                "in": [
+                  "comparisons@i12",
+                  "comparisons@i16",
+                  "doubled@i8",
+                  "mixed@i5",
+                  "part@i2",
+                  "t1@i3",
+                  "t2@i4",
+                  "t3@i7",
+                  "t4@i10",
+                  "t5@i13",
+                  "t6@i15",
+                  "t7@i18",
+                  "whole_2@i1"
+                ],
+                "iteration": 4,
+                "out": [
+                  "comparisons@i21",
+                  "doubled@i8",
+                  "mixed@i5",
+                  "part@i2",
+                  "t1@i3",
+                  "t2@i4",
+                  "t3@i7",
+                  "t4@i10",
+                  "t5@i13",
+                  "t6@i15",
+                  "t7@i18",
+                  "t8@i20",
+                  "whole_2@i1"
+                ]
+              },
+              {
+                "block": "B5",
+                "changed": true,
+                "in": [
+                  "comparisons@i12",
+                  "comparisons@i16",
+                  "comparisons@i21",
+                  "doubled@i8",
+                  "mixed@i5",
+                  "part@i2",
+                  "t1@i3",
+                  "t2@i4",
+                  "t3@i7",
+                  "t4@i10",
+                  "t5@i13",
+                  "t6@i15",
+                  "t7@i18",
+                  "t8@i20",
+                  "whole_2@i1"
+                ],
+                "iteration": 5,
+                "out": [
+                  "comparisons@i12",
+                  "comparisons@i16",
+                  "comparisons@i21",
+                  "doubled@i8",
+                  "mixed@i5",
+                  "part@i2",
+                  "t1@i3",
+                  "t2@i4",
+                  "t3@i7",
+                  "t4@i10",
+                  "t5@i13",
+                  "t6@i15",
+                  "t7@i18",
+                  "t8@i20",
+                  "t9@i23",
+                  "whole_2@i1"
+                ]
+              },
+              {
+                "block": "B6",
+                "changed": true,
+                "in": [
+                  "comparisons@i12",
+                  "comparisons@i16",
+                  "comparisons@i21",
+                  "doubled@i8",
+                  "mixed@i5",
+                  "part@i2",
+                  "t1@i3",
+                  "t2@i4",
+                  "t3@i7",
+                  "t4@i10",
+                  "t5@i13",
+                  "t6@i15",
+                  "t7@i18",
+                  "t8@i20",
+                  "t9@i23",
+                  "whole_2@i1"
+                ],
+                "iteration": 6,
+                "out": [
+                  "comparisons@i26",
+                  "doubled@i8",
+                  "mixed@i5",
+                  "part@i2",
+                  "t10@i25",
+                  "t1@i3",
+                  "t2@i4",
+                  "t3@i7",
+                  "t4@i10",
+                  "t5@i13",
+                  "t6@i15",
+                  "t7@i18",
+                  "t8@i20",
+                  "t9@i23",
+                  "whole_2@i1"
+                ]
+              },
+              {
+                "block": "B7",
+                "changed": true,
+                "in": [
+                  "comparisons@i12",
+                  "comparisons@i16",
+                  "comparisons@i21",
+                  "comparisons@i26",
+                  "doubled@i8",
+                  "mixed@i5",
+                  "part@i2",
+                  "t10@i25",
+                  "t1@i3",
+                  "t2@i4",
+                  "t3@i7",
+                  "t4@i10",
+                  "t5@i13",
+                  "t6@i15",
+                  "t7@i18",
+                  "t8@i20",
+                  "t9@i23",
+                  "whole_2@i1"
+                ],
+                "iteration": 7,
+                "out": [
+                  "comparisons@i12",
+                  "comparisons@i16",
+                  "comparisons@i21",
+                  "comparisons@i26",
+                  "doubled@i8",
+                  "flag@i31",
+                  "mixed@i5",
+                  "part@i2",
+                  "t10@i25",
+                  "t11@i30",
+                  "t1@i3",
+                  "t2@i4",
+                  "t3@i7",
+                  "t4@i10",
+                  "t5@i13",
+                  "t6@i15",
+                  "t7@i18",
+                  "t8@i20",
+                  "t9@i23",
+                  "whole_2@i1",
+                  "zero@i29"
+                ]
+              }
+            ],
+            "trace_truncated": false
+          }
+        },
         "uninitialized_reads": []
       },
       "scale": {
@@ -5455,6 +6119,68 @@
             "PARAM(value)",
             "t1@i1"
           ]
+        },
+        "traces": {
+          "constant_propagation": {
+            "direction": "forward",
+            "iterations": 1,
+            "steps": [
+              {
+                "block": "B1",
+                "changed": true,
+                "in": {
+                  "factor": "NAC",
+                  "t1": "NAC",
+                  "value": "NAC"
+                },
+                "iteration": 1,
+                "out": {
+                  "factor": "NAC",
+                  "t1": "NAC",
+                  "value": "NAC"
+                }
+              }
+            ],
+            "trace_truncated": false
+          },
+          "liveness": {
+            "direction": "backward",
+            "iterations": 1,
+            "steps": [
+              {
+                "block": "B1",
+                "changed": true,
+                "in": [
+                  "factor",
+                  "value"
+                ],
+                "iteration": 1,
+                "out": []
+              }
+            ],
+            "trace_truncated": false
+          },
+          "reaching": {
+            "direction": "forward",
+            "iterations": 1,
+            "steps": [
+              {
+                "block": "B1",
+                "changed": true,
+                "in": [
+                  "PARAM(factor)",
+                  "PARAM(value)"
+                ],
+                "iteration": 1,
+                "out": [
+                  "PARAM(factor)",
+                  "PARAM(value)",
+                  "t1@i1"
+                ]
+              }
+            ],
+            "trace_truncated": false
+          }
         },
         "uninitialized_reads": []
       },
@@ -5608,6 +6334,66 @@
             "t1@i1",
             "whole@i2"
           ]
+        },
+        "traces": {
+          "constant_propagation": {
+            "direction": "forward",
+            "iterations": 1,
+            "steps": [
+              {
+                "block": "B1",
+                "changed": true,
+                "in": {
+                  "t1": "NAC",
+                  "value_2": "NAC",
+                  "whole": "NAC"
+                },
+                "iteration": 1,
+                "out": {
+                  "t1": "NAC",
+                  "value_2": "NAC",
+                  "whole": "NAC"
+                }
+              }
+            ],
+            "trace_truncated": false
+          },
+          "liveness": {
+            "direction": "backward",
+            "iterations": 1,
+            "steps": [
+              {
+                "block": "B1",
+                "changed": true,
+                "in": [
+                  "value_2"
+                ],
+                "iteration": 1,
+                "out": []
+              }
+            ],
+            "trace_truncated": false
+          },
+          "reaching": {
+            "direction": "forward",
+            "iterations": 1,
+            "steps": [
+              {
+                "block": "B1",
+                "changed": true,
+                "in": [
+                  "PARAM(value_2)"
+                ],
+                "iteration": 1,
+                "out": [
+                  "PARAM(value_2)",
+                  "t1@i1",
+                  "whole@i2"
+                ]
+              }
+            ],
+            "trace_truncated": false
+          }
         },
         "uninitialized_reads": []
       }
@@ -9118,6 +9904,18 @@
       ],
       "removed_instructions": 20,
       "rounds": 3,
+      "skipped": [
+        {
+          "kind": "unverified_entry",
+          "reason": "`scale` takes parameters, and the oracle has no argument values to give it, so it was not run",
+          "target": "scale"
+        },
+        {
+          "kind": "unverified_entry",
+          "reason": "`to_int` takes parameters, and the oracle has no argument values to give it, so it was not run",
+          "target": "to_int"
+        }
+      ],
       "stats": {
         "after": {
           "functions": 3,
@@ -11525,5 +12323,6 @@
       }
     ]
   },
-  "source": "/* float and int arithmetic side by side, including an explicit narrowing step. */\n\nfloat scale(float value, float factor) {\n    return value * factor;\n}\n\nint to_int(float value) {\n    /* Narrowing a float to an int discards the fractional part. */\n    int whole = value;\n    return whole;\n}\n\nint main() {\n    int whole = 7;\n    float part = 0.5;\n    float mixed = whole + part;\n\n    printf(\"whole=%d part=%f mixed=%f\\n\", whole, part, mixed);\n\n    float doubled = scale(mixed, 2.0);\n    printf(\"doubled=%f\\n\", doubled);\n\n    printf(\"as int: %d\\n\", to_int(doubled));\n\n    int comparisons = 0;\n    if (mixed > 7.0) {\n        comparisons = comparisons + 1;\n    }\n    if (mixed < 7.5) {\n        comparisons = comparisons + 1;\n    }\n    if (mixed == 7.5) {\n        comparisons = comparisons + 1;\n    }\n    printf(\"true comparisons: %d of 3\\n\", comparisons);\n\n    float zero = 0.0;\n    int flag = !zero;\n    printf(\"!0.0 = %d\\n\", flag);\n\n    return 0;\n}"
+  "source": "/* float and int arithmetic side by side, including an explicit narrowing step. */\n\nfloat scale(float value, float factor) {\n    return value * factor;\n}\n\nint to_int(float value) {\n    /* Narrowing a float to an int discards the fractional part. */\n    int whole = value;\n    return whole;\n}\n\nint main() {\n    int whole = 7;\n    float part = 0.5;\n    float mixed = whole + part;\n\n    printf(\"whole=%d part=%f mixed=%f\\n\", whole, part, mixed);\n\n    float doubled = scale(mixed, 2.0);\n    printf(\"doubled=%f\\n\", doubled);\n\n    printf(\"as int: %d\\n\", to_int(doubled));\n\n    int comparisons = 0;\n    if (mixed > 7.0) {\n        comparisons = comparisons + 1;\n    }\n    if (mixed < 7.5) {\n        comparisons = comparisons + 1;\n    }\n    if (mixed == 7.5) {\n        comparisons = comparisons + 1;\n    }\n    printf(\"true comparisons: %d of 3\\n\", comparisons);\n\n    float zero = 0.0;\n    int flag = !zero;\n    printf(\"!0.0 = %d\\n\", flag);\n\n    return 0;\n}",
+  "stdin": ""
 }

@@ -30,7 +30,7 @@ from opticode.parser import parse
 from opticode.semantic import analyze
 from opticode.semantic.types import TypeName
 
-EXAMPLES_DIR = Path(__file__).resolve().parents[1] / "examples"
+EXAMPLES_DIR = Path(__file__).resolve().parents[2] / "examples" / "valid"
 
 
 def run(source: str, *, stdin: str = "", entry: str = "main", limits=None):
@@ -692,6 +692,15 @@ EXAMPLE_STDIN = {
     "06_io.c": "3 2.5\n7 2\n",
 }
 
+#: Examples that are valid MiniC and still abort at run time, with the trap they must hit.
+#:
+#: `15_division_by_zero.c` divides by a literal zero on purpose. Asserting it "runs fine"
+#: would mean the interpreter had started hiding a runtime error, so the expectation is
+#: inverted for it and stated explicitly: it must trap, with this message, every time.
+EXAMPLE_TRAPS = {
+    "15_division_by_zero.c": "division by zero",
+}
+
 
 def _lower_source(source: str):
     program, diagnostics = parse(source)
@@ -728,10 +737,20 @@ def test_linearized_output_matches_the_original(path: Path):
 
 @pytest.mark.parametrize("path", EXAMPLE_SOURCES, ids=EXAMPLE_NAMES)
 def test_every_example_runs_and_prints(path: Path):
-    """Every example must actually execute, not merely compile."""
+    """Every example must actually execute, not merely compile.
+
+    The exceptions are the ones whose whole point is to fail at run time, and they are
+    checked for the *failure* instead: an example that is supposed to trap and quietly
+    returns would mean the trap was optimized away or swallowed.
+    """
     outcome = run(
         path.read_text(encoding="utf-8"), stdin=EXAMPLE_STDIN.get(path.name, "")
     )
+    if path.name in EXAMPLE_TRAPS:
+        assert not outcome.ok, f"{path.name} was expected to trap but completed"
+        assert outcome.message == EXAMPLE_TRAPS[path.name]
+        assert outcome.traps, f"{path.name} trapped without naming the instruction"
+        return
     assert outcome.ok, f"{path.name}: {outcome.status} {outcome.message}"
     assert outcome.output, f"{path.name} printed nothing"
     assert outcome.steps > 0
@@ -742,9 +761,11 @@ def test_the_io_example_produces_the_right_answer():
 
     Three items at 2.5 each is 7.5, and the two integers must multiply to 14 -- this pins
     the whole scanf/printf path, including the float reading and the `%f` six-decimal
-    rendering.
+    rendering. Located by name rather than by index, so adding an example cannot silently
+    move the check onto a different program.
     """
-    outcome = run(EXAMPLE_SOURCES[5].read_text(encoding="utf-8"), stdin=EXAMPLE_STDIN["06_io.c"])
+    path = EXAMPLES_DIR / "06_io.c"
+    outcome = run(path.read_text(encoding="utf-8"), stdin=EXAMPLE_STDIN["06_io.c"])
     assert outcome.output == (
         "How many items? Price each? "
         "Total for 3 items at 2.500000 each: 7.500000\n"

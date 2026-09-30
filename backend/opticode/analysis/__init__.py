@@ -75,6 +75,14 @@ def analyze_cfg(cfg: CFG) -> FunctionAnalysis:
             "reaching": reaching_solution.iterations,
             "constant_propagation": constants.iterations,
         },
+        # The solutions carry the recorded convergence, which the UI's stepper replays. They
+        # are handed back here rather than re-solved, so a request pays for three solver
+        # runs per function and not six.
+        solutions={
+            "liveness": live,
+            "reaching": reaching_solution,
+            "constant_propagation": constants,
+        },
     )
 
 

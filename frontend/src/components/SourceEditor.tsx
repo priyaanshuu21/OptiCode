@@ -3,10 +3,12 @@ import Editor, { type OnMount } from '@monaco-editor/react'
 import type * as Monaco from 'monaco-editor'
 
 import { useCompilerStore } from '@/store/compiler'
-import type { Diagnostic } from '@/api/types'
+import type { Diagnostic, Finding } from '@/api/types'
+import { spanToRange } from '@/lib/span'
 
 /** A stable empty array, so a missing response does not change a hook's dependency identity. */
 const NO_DIAGNOSTICS: Diagnostic[] = []
+const NO_FINDINGS: Finding[] = []
 
 /**
  * The source editor, plus the decoration that links it to the rest of the app.
@@ -65,11 +67,14 @@ export function SourceEditor({ height = '100%' }: { height?: string }): JSX.Elem
   const selection = useCompilerStore((state) => state.selection)
   const response = useCompilerStore((state) => state.response)
   const diagnostics = useMemo(() => response?.diagnostics ?? NO_DIAGNOSTICS, [response])
+  const findings = useMemo(() => response?.analysis?.findings ?? NO_FINDINGS, [response])
 
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null)
   const monacoRef = useRef<typeof Monaco | null>(null)
   const decorationsRef = useRef<Monaco.editor.IEditorDecorationsCollection | null>(null)
+  const findingsRef = useRef<Monaco.editor.IEditorDecorationsCollection | null>(null)
   const diagnosticsRef = useRef<Diagnostic[]>(diagnostics)
+  const findingsListRef = useRef<Finding[]>(findings)
 
   const applyMarkers = useCallback(() => {
     const monaco = monacoRef.current
@@ -127,15 +132,48 @@ export function SourceEditor({ height = '100%' }: { height?: string }): JSX.Elem
     editorRef.current?.revealLineInCenter(current.line)
   }, [])
 
+  /**
+   * Dead code gets its own decoration, kept separate from the selection highlight.
+   *
+   * These are not errors: the program is valid, and it compiled. A finding means a *human* wrote
+   * something the compiler proved is dead, so the mark has to read as an annotation rather than
+   * as a squiggle — otherwise every valid program with a dead assignment looks broken. One
+   * collection, and not the selection one, so selecting a block does not wipe the annotations and
+   * vice versa.
+   */
+  const applyFindings = useCallback(() => {
+    const decorations = findingsRef.current
+    if (!decorations) {
+      return
+    }
+    decorations.set(
+      findingsListRef.current.flatMap((finding) =>
+        finding.span
+          ? [
+              {
+                range: spanToRange(finding.span),
+                options: {
+                  inlineClassName: `finding-${finding.kind}`,
+                  hoverMessage: { value: `**${finding.message}**\n\n${finding.explanation}` },
+                },
+              },
+            ]
+          : [],
+      ),
+    )
+  }, [])
+
   const handleMount: OnMount = (editor, monaco) => {
     editorRef.current = editor
     monacoRef.current = monaco
     defineTheme(monaco)
     monaco.editor.setTheme('opticode')
     decorationsRef.current = editor.createDecorationsCollection([])
+    findingsRef.current = editor.createDecorationsCollection([])
     // The editor can mount after the first compile response has already landed.
     applyMarkers()
     applySelection()
+    applyFindings()
   }
 
   // The editor is controlled by the store, but re-creating the document on every keystroke would
@@ -156,6 +194,11 @@ export function SourceEditor({ height = '100%' }: { height?: string }): JSX.Elem
     diagnosticsRef.current = diagnostics
     applyMarkers()
   }, [diagnostics, applyMarkers])
+
+  useEffect(() => {
+    findingsListRef.current = findings
+    applyFindings()
+  }, [findings, applyFindings])
 
   useEffect(() => {
     applySelection()

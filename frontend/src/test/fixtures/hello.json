@@ -316,6 +316,50 @@
         "reaching_out": {
           "B1": []
         },
+        "traces": {
+          "constant_propagation": {
+            "direction": "forward",
+            "iterations": 1,
+            "steps": [
+              {
+                "block": "B1",
+                "changed": false,
+                "in": {},
+                "iteration": 1,
+                "out": {}
+              }
+            ],
+            "trace_truncated": false
+          },
+          "liveness": {
+            "direction": "backward",
+            "iterations": 1,
+            "steps": [
+              {
+                "block": "B1",
+                "changed": false,
+                "in": [],
+                "iteration": 1,
+                "out": []
+              }
+            ],
+            "trace_truncated": false
+          },
+          "reaching": {
+            "direction": "forward",
+            "iterations": 1,
+            "steps": [
+              {
+                "block": "B1",
+                "changed": false,
+                "in": [],
+                "iteration": 1,
+                "out": []
+              }
+            ],
+            "trace_truncated": false
+          }
+        },
         "uninitialized_reads": []
       }
     },
@@ -670,5 +714,6 @@
       }
     ]
   },
-  "source": "/* The smallest complete program: print a greeting and return a value. */\n\nint main() {\n    printf(\"Hello, world!\\n\");\n    return 0;\n}"
+  "source": "/* The smallest complete program: print a greeting and return a value. */\n\nint main() {\n    printf(\"Hello, world!\\n\");\n    return 0;\n}",
+  "stdin": ""
 }

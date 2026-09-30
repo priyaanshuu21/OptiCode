@@ -2124,6 +2124,86 @@
             "total@i9"
           ]
         },
+        "traces": {
+          "constant_propagation": {
+            "direction": "forward",
+            "iterations": 1,
+            "steps": [
+              {
+                "block": "B1",
+                "changed": true,
+                "in": {
+                  "a": "NAC",
+                  "b": "NAC",
+                  "count": "NAC",
+                  "price": "NAC",
+                  "t1": "NAC",
+                  "t2": "NAC",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "t5": "NAC",
+                  "total": "NAC"
+                },
+                "iteration": 1,
+                "out": {
+                  "a": "NAC",
+                  "b": "NAC",
+                  "count": "NAC",
+                  "price": "NAC",
+                  "t1": "NAC",
+                  "t2": "NAC",
+                  "t3": "NAC",
+                  "t4": "NAC",
+                  "t5": "NAC",
+                  "total": "NAC"
+                }
+              }
+            ],
+            "trace_truncated": false
+          },
+          "liveness": {
+            "direction": "backward",
+            "iterations": 1,
+            "steps": [
+              {
+                "block": "B1",
+                "changed": false,
+                "in": [],
+                "iteration": 1,
+                "out": []
+              }
+            ],
+            "trace_truncated": false
+          },
+          "reaching": {
+            "direction": "forward",
+            "iterations": 1,
+            "steps": [
+              {
+                "block": "B1",
+                "changed": true,
+                "in": [
+                  "UNDEF(a)",
+                  "UNDEF(b)"
+                ],
+                "iteration": 1,
+                "out": [
+                  "a@i12",
+                  "b@i13",
+                  "count@i4",
+                  "price@i6",
+                  "t1@i7",
+                  "t2@i8",
+                  "t3@i14",
+                  "t4@i15",
+                  "t5@i16",
+                  "total@i9"
+                ]
+              }
+            ],
+            "trace_truncated": false
+          }
+        },
         "uninitialized_reads": []
       }
     },
@@ -3805,6 +3885,28 @@
       ],
       "removed_instructions": 2,
       "rounds": 2,
+      "skipped": [
+        {
+          "kind": "pass_found_nothing",
+          "reason": "constant-propagation found no pattern it could rewrite (replace reads of provably constant values with literals)",
+          "target": "constant-propagation"
+        },
+        {
+          "kind": "pass_found_nothing",
+          "reason": "constant-folding found no pattern it could rewrite (compute instructions with literal operands at compile time)",
+          "target": "constant-folding"
+        },
+        {
+          "kind": "pass_found_nothing",
+          "reason": "branch-folding found no pattern it could rewrite (resolve branches on a constant condition)",
+          "target": "branch-folding"
+        },
+        {
+          "kind": "pass_found_nothing",
+          "reason": "unreachable-blocks found no pattern it could rewrite (delete blocks no path from the function entry reaches)",
+          "target": "unreachable-blocks"
+        }
+      ],
       "stats": {
         "after": {
           "functions": 1,
@@ -5322,5 +5424,6 @@
       }
     ]
   },
-  "source": "/* Reading input with scanf and printing it back with printf. */\n\nint main() {\n    int count = 0;\n    float price = 0.0;\n\n    printf(\"How many items? \");\n    scanf(\"%d\", &count);\n\n    printf(\"Price each? \");\n    scanf(\"%f\", &price);\n\n    float total = price * count;\n    printf(\"Total for %d items at %f each: %f\\n\", count, price, total);\n\n    /* Several values in one format string, each with its own specifier. */\n    int a;\n    int b;\n    printf(\"Enter two integers: \");\n    scanf(\"%d %d\", &a, &b);\n    printf(\"sum=%d diff=%d product=%d\\n\", a + b, a - b, a * b);\n\n    /* %% prints a literal percent sign and consumes no argument. */\n    printf(\"100%% of the total is %f\\n\", total);\n\n    return 0;\n}"
+  "source": "/* Reading input with scanf and printing it back with printf. */\n\nint main() {\n    int count = 0;\n    float price = 0.0;\n\n    printf(\"How many items? \");\n    scanf(\"%d\", &count);\n\n    printf(\"Price each? \");\n    scanf(\"%f\", &price);\n\n    float total = price * count;\n    printf(\"Total for %d items at %f each: %f\\n\", count, price, total);\n\n    /* Several values in one format string, each with its own specifier. */\n    int a;\n    int b;\n    printf(\"Enter two integers: \");\n    scanf(\"%d %d\", &a, &b);\n    printf(\"sum=%d diff=%d product=%d\\n\", a + b, a - b, a * b);\n\n    /* %% prints a literal percent sign and consumes no argument. */\n    printf(\"100%% of the total is %f\\n\", total);\n\n    return 0;\n}",
+  "stdin": "3\n2.5\n10 20\n"
 }

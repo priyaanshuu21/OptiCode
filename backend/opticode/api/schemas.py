@@ -15,6 +15,9 @@ __all__ = [
     "CompileRequest",
     "CompileOptions",
     "CompileResponse",
+    "ExampleDetailModel",
+    "ExampleListResponse",
+    "ExampleSummaryModel",
     "HealthResponse",
     "SpanModel",
     "DiagnosticModel",
@@ -82,3 +85,36 @@ class HealthResponse(BaseModel):
     status: Literal["ok"] = "ok"
     version: str
     stages: list[str]
+
+
+class ExampleSummaryModel(BaseModel):
+    """One curated program, without its text. What the menu is built from."""
+
+    name: str = Field(description="Slug used in the detail URL")
+    title: str
+    #: Path relative to ``examples/``, so the entry can be traced back to the file.
+    file: str
+    #: False for a program that is meant to fail to compile.
+    valid: bool
+    summary: str
+    tags: list[str] = Field(default_factory=list)
+    #: Language constructs the program exercises, for search and for the coverage test.
+    features: list[str] = Field(default_factory=list)
+    #: The codes this program is supposed to produce, so a corpus regression is visible.
+    expected_diagnostics: list[str] = Field(default_factory=list)
+    suggested_mode: Literal["analyze", "optimize"] = "analyze"
+
+
+class ExampleListResponse(BaseModel):
+    examples: list[ExampleSummaryModel]
+    count: int
+    #: How many of the listed programs are expected to fail to compile.
+    invalid_count: int
+
+
+class ExampleDetailModel(ExampleSummaryModel):
+    """A summary plus the program text and the input it expects on stdin."""
+
+    source: str
+    stdin: str
+    lines: int

@@ -746,6 +746,169 @@ def test_the_result_round_trips_through_to_dict():
     assert payload["stats"]["after"]["instructions"] == result.stats_after.instructions
     # The optimized TAC travels with the report so the frontend can show the difference.
     assert payload["ir"]["functions"]
+    # The gaps travel with it: a report that lists what happened must also list what did not.
+    assert payload["skipped"] == result.skipped()
+
+
+# ------------------------------------------------------------- what was skipped
+
+
+def test_a_pass_that_changed_nothing_is_reported_as_having_found_nothing():
+    """A pass that rewrote nothing must not look like a pass that was not run.
+
+    "12 instructions removed" reads as "everything removable went", and the only thing that
+    says otherwise is an explicit entry saying this pass matched no pattern. So an unchanged
+    pass appears in `skipped` and a changed one does not.
+    """
+    source = (
+        "int main() {\n"
+        "  int n;\n"
+        '  scanf("%d", &n);\n'
+        "  int total = 0;\n"
+        "  int i = 0;\n"
+        "  while (i < n) { total = total + i; i = i + 1; }\n"
+        '  printf("%d\\n", total);\n'
+        "  return 0;\n"
+        "}\n"
+    )
+    result = optimize_source(source)
+    by_pass = {item.name: item for item in result.passes}
+
+    skipped_passes = {
+        gap["target"] for gap in result.skipped() if gap["kind"] == "pass_found_nothing"
+    }
+    assert skipped_passes, "a run over this program changed nothing, so it must say so"
+    for name, item in by_pass.items():
+        if item.changed:
+            assert name not in skipped_passes, f"{name} changed and was reported as unchanged"
+        else:
+            assert name in skipped_passes, f"{name} was silent about finding nothing"
+
+
+def test_every_gap_carries_a_reason_naming_its_target():
+    """A gap without a reason is an excuse; a gap with one is something to act on."""
+    result = optimize_source("int main() {\n  int x = 1;\n  return x;\n}\n")
+    gaps = result.skipped()
+    assert gaps
+    for gap in gaps:
+        assert set(gap) == {"kind", "target", "reason"}
+        assert gap["target"] in gap["reason"] or gap["kind"] == "truncated_events"
+        assert len(gap["reason"]) > len(gap["target"]), gap
+
+
+def test_a_function_the_oracle_cannot_call_is_reported_as_unverified():
+    """`main` can be run; `add` cannot, and the report has to admit it.
+
+    The interpreter oracle has no argument values to give a function that takes parameters, so
+    such a function is never checked. Silently omitting it would make the report read as
+    "everything was verified" when the truth is "the reachable entry point was". The program
+    has to change *something* for verification to run at all — a run that rewrote nothing has
+    nothing to compare — so `main` folds a constant.
+    """
+    result = optimize_source(
+        "int add(int a, int b) {\n  return a + b;\n}\n"
+        "int main() {\n  int x = 2 + 3;\n  return add(x, 1);\n}\n"
+    )
+    assert result.changed is True
+    assert result.verification is not None
+    assert result.verification.unverified_entries == ("add",)
+    unverified = [gap for gap in result.skipped() if gap["kind"] == "unverified_entry"]
+    assert [gap["target"] for gap in unverified] == ["add"]
+    assert "add" in unverified[0]["reason"]
+
+
+def test_a_run_with_nothing_to_verify_reports_no_unverified_entries():
+    """A program whose only entry point takes no arguments has nothing to skip.
+
+    `main` is runnable, so the oracle checks it and there is no `unverified_entry` gap: the
+    list is about what was left out, and nothing was.
+    """
+    result = optimize_source("int main() {\n  int x = 1 + 1;\n  return x;\n}\n")
+    assert result.changed is True
+    assert result.verification is not None
+    assert result.verification.unverified_entries == ()
+    assert [gap for gap in result.skipped() if gap["kind"] == "unverified_entry"] == []
+
+
+def test_an_inconclusive_case_is_reported_as_deciding_nothing():
+    """A run that hit a limit did not pass and did not fail. It is a third thing."""
+    result = optimize_source("int main() {\n  int x = 1;\n  return x;\n}\n")
+    gaps = [gap for gap in result.skipped() if gap["kind"] == "inconclusive_case"]
+    assert bool(gaps) == bool(result.verification and result.verification.cases_inconclusive)
+    if gaps:
+        assert str(result.verification.cases_inconclusive) in gaps[0]["reason"]
+
+
+def test_truncated_events_are_reported_as_incomplete_detail():
+    """The totals still describe the whole run, so the gap is about the list, not the counts."""
+    source = (
+        "int main() {\n"
+        + "".join(f"  int v{i} = {i} + {i};\n" for i in range(400))
+        + "  return 0;\n}\n"
+    )
+    result = optimize_source(source)
+    gaps = [gap for gap in result.skipped() if gap["kind"] == "truncated_events"]
+    assert bool(gaps) == result.events_truncated
+    if gaps:
+        assert str(MAX_EVENTS) in gaps[0]["reason"]
+
+
+def test_the_skipped_list_is_a_gap_list_and_not_a_failure_list():
+    """"Skipped" is not "failed", and the wording must not slide into it.
+
+    A pass that found nothing and a verification case that hit a limit both decided the
+    program is fine, as far as they went. The UI groups by `kind`, so a failure-shaped word in
+    a reason string would be a bug that only shows up on screen.
+    """
+    result = optimize_source("int main() {\n  int x = 1;\n  return x;\n}\n")
+    for gap in result.skipped():
+        assert "fail" not in gap["reason"].lower()
+        assert "error" not in gap["reason"].lower()
+        assert "mismatch" not in gap["reason"].lower()
+
+
+def test_a_fully_optimized_run_still_reports_its_gaps():
+    """A run where every pass found nothing must say every pass found nothing.
+
+    Nothing changed, so the oracle is not run at all — comparing a program with itself would
+    "prove" nothing — and the report is nothing but gaps. That case is the one most likely to
+    be rendered as a silent empty panel, so it is pinned here.
+    """
+    source = (
+        "int main() {\n"
+        "  int n;\n"
+        '  scanf("%d", &n);\n'
+        "  int total = 0;\n"
+        "  int i = 0;\n"
+        "  while (i < n) { total = total + i; i = i + 1; }\n"
+        '  printf("%d\\n", total);\n'
+        "  return 0;\n"
+        "}\n"
+    )
+    result = optimize_source(source)
+    assert result.changed is False
+    assert result.verification is None
+    assert {gap["kind"] for gap in result.skipped()} == {"pass_found_nothing"}
+    assert len(result.skipped()) == len(result.passes)
+    assert all(not item.changed for item in result.passes)
+
+
+def test_skipped_is_empty_only_when_there_is_genuinely_nothing_to_report(client):
+    """The API payload agrees with the object, and it is never `None`.
+
+    The frontend does `payload.skipped.map(...)` without a guard, so a missing key would be
+    a blank panel with no error anywhere.
+    """
+    body = _post(
+        client,
+        {
+            "source": "int main() {\n  int x = 1;\n  return x;\n}\n",
+            "mode": "optimize",
+        },
+    )
+    assert isinstance(body["optimization"]["skipped"], list)
+    for gap in body["optimization"]["skipped"]:
+        assert set(gap) == {"kind", "target", "reason"}
 
 
 # ------------------------------------------------------- verification

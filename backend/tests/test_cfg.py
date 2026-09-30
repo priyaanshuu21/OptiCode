@@ -571,7 +571,9 @@ def test_lowered_while_has_exactly_one_back_edge():
 def test_every_example_builds_a_consistent_cfg():
     from pathlib import Path
 
-    examples = sorted((Path(__file__).resolve().parents[1] / "examples").glob("*.c"))
+    examples = sorted(
+        (Path(__file__).resolve().parents[2] / "examples" / "valid").glob("*.c")
+    )
     assert examples
     for path in examples:
         for name, cfg in build_program_cfgs(lower_cfg(path.read_text(encoding="utf-8"))).items():

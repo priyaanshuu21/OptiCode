@@ -5,7 +5,10 @@ import { SourceEditor } from '@/components/SourceEditor'
 import { TokensView } from '@/views/TokensView'
 import { AstView } from '@/views/AstView'
 import { TacView } from '@/views/TacView'
-import { BlocksView } from '@/views/BlocksView'
+import { CfgView } from '@/views/CfgView'
+import { DataFlowView } from '@/views/DataFlowView'
+import { FindingsView } from '@/views/FindingsView'
+import { OptimizationView } from '@/views/OptimizationView'
 import { DiagnosticsView } from '@/views/DiagnosticsView'
 
 /**
@@ -21,7 +24,10 @@ const VIEWS: Record<StageId, () => JSX.Element> = {
   tokens: TokensView,
   ast: AstView,
   tac: TacView,
-  blocks: BlocksView,
+  cfg: CfgView,
+  dataflow: DataFlowView,
+  findings: FindingsView,
+  optimization: OptimizationView,
   diagnostics: DiagnosticsView,
 }
 
@@ -73,6 +79,90 @@ function StageTabs(): JSX.Element {
   )
 }
 
+/**
+ * The examples menu.
+ *
+ * The examples that are *meant* to fail are grouped separately and marked, because "load this
+ * program" means something different for a program the compiler rejects. A menu that hid that
+ * would let somebody load a broken example, see errors, and conclude the compiler is broken.
+ */
+function ExamplePicker(): JSX.Element {
+  const examples = useCompilerStore((state) => state.examples)
+  const examplesError = useCompilerStore((state) => state.examplesError)
+  const loaded = useCompilerStore((state) => state.loadedExample)
+  const loadExamples = useCompilerStore((state) => state.loadExamples)
+  const loadExample = useCompilerStore((state) => state.loadExample)
+  const stdin = useCompilerStore((state) => state.stdin)
+  const setStdin = useCompilerStore((state) => state.setStdin)
+
+  useEffect(() => {
+    void loadExamples()
+  }, [loadExamples])
+
+  if (examplesError) {
+    return (
+      <span
+        className="font-mono text-2xs text-slate-500"
+        title={examplesError}
+      >
+        examples unavailable
+      </span>
+    )
+  }
+
+  if (examples.length === 0) {
+    return <span className="font-mono text-2xs text-slate-600">loading examples…</span>
+  }
+
+  const valid = examples.filter((example) => example.valid)
+  const invalid = examples.filter((example) => !example.valid)
+
+  return (
+    <div className="flex items-center gap-2">
+      <label className="sr-only" htmlFor="example-picker">
+        Load an example program
+      </label>
+      <select
+        id="example-picker"
+        value={loaded ?? ''}
+        onChange={(event) => {
+          if (event.target.value) {
+            void loadExample(event.target.value)
+          }
+        }}
+        className="max-w-56 rounded border border-edge bg-surface-overlay px-2 py-1 font-mono text-xs text-slate-200"
+      >
+        <option value="">Load an example…</option>
+        <optgroup label="Compiles cleanly">
+          {valid.map((example) => (
+            <option key={example.name} value={example.name}>
+              {example.title}
+            </option>
+          ))}
+        </optgroup>
+        <optgroup label="Rejected on purpose">
+          {invalid.map((example) => (
+            <option key={example.name} value={example.name}>
+              {example.title} ✗
+            </option>
+          ))}
+        </optgroup>
+      </select>
+      <label className="sr-only" htmlFor="stdin-input">
+        Program input
+      </label>
+      <input
+        id="stdin-input"
+        value={stdin}
+        onChange={(event) => setStdin(event.target.value)}
+        placeholder="stdin"
+        title="Input for programs that read. Press Compile to re-run with it."
+        className="w-28 rounded border border-edge bg-surface-overlay px-2 py-1 font-mono text-xs text-slate-200 placeholder:text-slate-600"
+      />
+    </div>
+  )
+}
+
 function Toolbar(): JSX.Element {
   const mode = useCompilerStore((state) => state.mode)
   const setMode = useCompilerStore((state) => state.setMode)
@@ -114,6 +204,8 @@ function Toolbar(): JSX.Element {
       >
         Compile
       </button>
+
+      <ExamplePicker />
 
       <div className="min-w-0 flex-1">
         {error ? (

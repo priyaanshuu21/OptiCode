@@ -30,7 +30,7 @@ from opticode.parser import parse
 from opticode.semantic import analyze as semantic_analyze
 
 #: The compiler's own regression corpus, the same one ``test_examples.py`` walks.
-EXAMPLES_DIR = Path(__file__).resolve().parents[1] / "examples"
+EXAMPLES_DIR = Path(__file__).resolve().parents[2] / "examples" / "valid"
 
 
 # ------------------------------------------------------------------- helpers

@@ -591,5 +591,6 @@
       }
     ]
   },
-  "source": "int main() {\n    int total = compute(unknown_name);\n    printf(\"%d\\n\", total);\n    return 0;\n}\n"
+  "source": "int main() {\n    int total = compute(unknown_name);\n    printf(\"%d\\n\", total);\n    return 0;\n}\n",
+  "stdin": ""
 }

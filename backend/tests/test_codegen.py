@@ -48,7 +48,7 @@ from opticode.parser import parse, unparse, walk
 from opticode.parser.ast import Block, If, Program, Stmt
 from opticode.semantic import analyze as semantic_analyze
 
-EXAMPLES = pathlib.Path(__file__).resolve().parents[1] / "examples"
+EXAMPLES = pathlib.Path(__file__).resolve().parents[2] / "examples" / "valid"
 
 # ------------------------------------------------------------------- helpers
 

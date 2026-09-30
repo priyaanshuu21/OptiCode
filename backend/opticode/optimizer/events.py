@@ -190,6 +190,7 @@ class OptimizationResult:
             "passes": [item.to_dict() for item in self.passes],
             "events": [item.to_dict() for item in self.events],
             "events_truncated": self.events_truncated,
+            "skipped": self.skipped(),
             "stats": {
                 "before": _stats_dict(self.stats_before),
                 "after": _stats_dict(self.stats_after),
@@ -200,6 +201,76 @@ class OptimizationResult:
             # sync with `ir`, which is always the *unoptimized* program.
             "ir": serialize_ir(self.optimized),
         }
+
+    def skipped(self) -> list[dict[str, str]]:
+        """What this run did *not* do, each with the reason it did not.
+
+        An optimization report that only lists what happened invites the wrong conclusion:
+        "the dead-store pass removed 12 instructions" reads as "everything removable went",
+        which is only true if nothing was skipped and nothing was left unverifiable. So the
+        gaps are enumerated with the reason for each, and the report is only as confident as
+        its least confident entry.
+
+        Four kinds, all of them facts this run already has:
+
+        * a pass that ran and found nothing matching its precondition;
+        * a function the interpreter oracle cannot call, because it takes parameters;
+        * a verification case a step or depth limit made inconclusive;
+        * recorded events that hit :data:`MAX_EVENTS`, so the detail is incomplete.
+
+        Skipped is deliberately not "failed": a case that hit a limit decided nothing, and
+        saying so is more useful than either "they differ" or "they match".
+        """
+        gaps: list[dict[str, str]] = []
+        for item in self.passes:
+            if item.changed:
+                continue
+            gaps.append(
+                {
+                    "kind": "pass_found_nothing",
+                    "target": item.name,
+                    "reason": f"{item.name} found no pattern it could rewrite ({item.description})",
+                }
+            )
+        report = self.verification
+        if report is not None:
+            # Direct attribute access, not getattr: a rename here has to be a loud failure,
+            # not a silently empty "skipped" list that makes the report look more complete
+            # than it is.
+            for entry in report.unverified_entries:
+                gaps.append(
+                    {
+                        "kind": "unverified_entry",
+                        "target": entry,
+                        "reason": (
+                            f"`{entry}` takes parameters, and the oracle has no argument "
+                            "values to give it, so it was not run"
+                        ),
+                    }
+                )
+            if report.cases_inconclusive:
+                gaps.append(
+                    {
+                        "kind": "inconclusive_case",
+                        "target": "verification",
+                        "reason": (
+                            f"{report.cases_inconclusive} run(s) hit the step or depth limit "
+                            "and decided nothing either way"
+                        ),
+                    }
+                )
+        if self.events_truncated:
+            gaps.append(
+                {
+                    "kind": "truncated_events",
+                    "target": "events",
+                    "reason": (
+                        f"more than {MAX_EVENTS} changes happened, so the event list is "
+                        "truncated; the totals still describe the whole run"
+                    ),
+                }
+            )
+        return gaps
 
     def summary(self) -> str:
         """One line for a diagnostic message."""

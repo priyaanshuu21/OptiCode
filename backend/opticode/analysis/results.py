@@ -15,6 +15,7 @@ a second, possibly disagreeing, computation.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, TypeAlias
 
@@ -24,6 +25,7 @@ from .constprop import State, apply_instruction, read_operand
 from .lattice import NAC, AbstractValue
 from .liveness import NameSet
 from .reaching import Definition, DefinitionKind, definition
+from .solver import Solution
 
 __all__ = [
     "BranchCondition",
@@ -34,10 +36,54 @@ __all__ = [
     "InstructionFacts",
     "LivenessFact",
     "ReachingFact",
+    "SolverTrace",
 ]
 
 #: The set of definitions in effect at a program point.
 DefSet: TypeAlias = frozenset[Definition]
+
+
+@dataclass(frozen=True, slots=True)
+class SolverTrace:
+    """One analysis's recorded convergence, flattened for the wire.
+
+    The solver already keeps the per-update IN/OUT values it computed
+    (:class:`~opticode.analysis.solver.Solution`). This is the same information with the
+    callable that renders domain values removed, because a domain value cannot cross a JSON
+    boundary and the rendering already happened when the step was recorded.
+
+    The UI stepper walks ``steps`` in order, so the order is the order the worklist ran in,
+    which is a function of the CFG alone. That is what makes the trace reproducible: the same
+    program produces the same steps on every run, so a screenshot of the stepper is a claim
+    somebody can check.
+    """
+
+    #: ``forward`` or ``backward``, which way the facts move relative to control.
+    direction: str
+    #: Total block updates performed, which may exceed ``len(steps)``.
+    iterations: int
+    #: Up to :data:`~opticode.analysis.solver.MAX_TRACE_STEPS` updates, in order.
+    steps: tuple[dict[str, Any], ...] = ()
+    #: True when the trace stopped short of ``iterations``.
+    trace_truncated: bool = False
+
+    @classmethod
+    def of(cls, solution: Solution[Any]) -> SolverTrace:
+        """Flatten one :class:`Solution`."""
+        return cls(
+            direction=solution.direction.value,
+            iterations=solution.iterations,
+            steps=tuple(step.to_dict() for step in solution.trace),
+            trace_truncated=solution.trace_truncated,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "direction": self.direction,
+            "iterations": self.iterations,
+            "steps": [dict(step) for step in self.steps],
+            "trace_truncated": self.trace_truncated,
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -232,6 +278,9 @@ class FunctionAnalysis:
     exit_values: dict[str, AbstractValue]
     #: How many block updates each analysis needed, for the UI.
     iterations: dict[str, int] = field(default_factory=dict)
+    #: Per-analysis solver traces, for the iteration stepper. Empty when the caller did not
+    #: supply the solutions; the counts above are enough for a summary either way.
+    traces: dict[str, SolverTrace] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -256,6 +305,7 @@ class FunctionAnalysis:
                 key: self.exit_values[key].to_dict() for key in sorted(self.exit_values)
             },
             "iterations": dict(sorted(self.iterations.items())),
+            "traces": {key: self.traces[key].to_dict() for key in sorted(self.traces)},
         }
 
 
@@ -343,12 +393,18 @@ def build_function_analysis(
     states_out: dict[str, State],
     exit_values: dict[str, AbstractValue],
     iterations: dict[str, int],
+    solutions: Mapping[str, Solution[Any]] | None = None,
 ) -> FunctionAnalysis:
     """Assemble a :class:`FunctionAnalysis` from the three solved fixed points.
 
     Each block is walked once, in order, carrying the three states forward. Liveness walks
     backwards (it is defined backwards), the other two walk forwards, so the loop below runs
     the forward walk once and the backward walk once per block.
+
+    ``solutions`` is optional and only feeds the iteration stepper. Everything above is
+    derived from the block fixed points, so a caller that already has them as plain dicts —
+    a test, or a re-analysis that does not need to show its work — can skip passing the
+    solver objects back in and still get a complete report.
     """
     from .liveness import live_after, live_before
 
@@ -416,4 +472,9 @@ def build_function_analysis(
         ),
         exit_values=dict(exit_values),
         iterations=dict(iterations),
+        traces=(
+            {name: SolverTrace.of(solution) for name, solution in solutions.items()}
+            if solutions
+            else {}
+        ),
     )

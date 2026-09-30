@@ -25,7 +25,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-EXAMPLES = REPO_ROOT / "backend" / "examples"
+EXAMPLES = REPO_ROOT / "examples" / "valid"
 FIXTURES = REPO_ROOT / "frontend" / "src" / "test" / "fixtures"
 
 #: Which example programs to freeze, and why each one is worth freezing.
@@ -36,8 +36,8 @@ FIXTURES = REPO_ROOT / "frontend" / "src" / "test" / "fixtures"
 CASES = [
     # The simplest program that still produces tokens, an AST, TAC, a CFG, and data flow.
     ("hello", "01_hello.c", "analyze"),
-    # Loops produce back edges, so the Blocks view has a cycle to lay out and the data-flow
-    # view has a fixpoint to show rather than a straight line.
+    # Loops produce back edges, so the CFG view has a cycle to lay out and the data-flow
+    # view has a fixpoint to step through rather than a straight line.
     ("loops", "03_loops.c", "optimize"),
     # scanf and printf give the TAC view real side effects and a read instruction, and the
     # unverified-oracle path shows up because helper functions take arguments.
@@ -47,6 +47,12 @@ CASES = [
     ("mixed_types", "08_mixed_types.c", "optimize"),
     # Unreachable and dead code, so diagnostics of several severities are present.
     ("dead_code", "11_dead_assignments.c", "optimize"),
+    # Unreachable code specifically, so the CFG's greyed-out blocks and the editor's dimmed
+    # statements have something to draw.
+    ("unreachable", "10_unreachable.c", "analyze"),
+    # Constant folding and propagation, which is the case where codegen has a real rewrite
+    # to diff: statements deleted and expressions replaced by literals.
+    ("folded", "12_constant_folding.c", "optimize"),
 ]
 
 #: A program the semantic stage rejects. The frontend has to render a failed compile, and
@@ -74,6 +80,23 @@ def _cases() -> list[tuple[str, str | None, str, str]]:
     return cases
 
 
+def _stdin_for(filename: str) -> str:
+    """The stdin an example expects, taken from the manifest rather than restated here.
+
+    The `io` example reads four values, and a fixture recorded with no input would exercise
+    the exhausted-input path instead of the interesting one. Reading it from the manifest
+    means there is one place that says what an example wants on stdin.
+    """
+    sys.path.insert(0, str(REPO_ROOT / "backend"))
+    from opticode.api.examples import load_manifest
+
+    target = f"valid/{filename}"
+    for example in load_manifest():
+        if example.file == target:
+            return example.stdin
+    return ""
+
+
 def responses() -> dict[str, object]:
     """One response document per case, keyed by fixture name."""
     sys.path.insert(0, str(REPO_ROOT / "backend"))
@@ -89,15 +112,19 @@ def responses() -> dict[str, object]:
             if not source_path.exists():
                 raise SystemExit(f"missing example {source_path}")
             source = source_path.read_text(encoding="utf-8")
+            stdin = _stdin_for(filename)
         else:
             source = inline
-        response = client.post("/api/compile", json={"source": source, "mode": mode})
+            stdin = ""
+        response = client.post(
+            "/api/compile", json={"source": source, "mode": mode, "stdin": stdin or None}
+        )
         body = response.json()
 
         # Timings are wall-clock and would make the fixture churn on every run. The stage
         # *names* are kept, because a view that decides which tabs to show needs them.
         body["timings"] = {stage: 0.0 for stage in body.get("timings", {})}
-        out[name] = {"source": source, "mode": mode, "response": body}
+        out[name] = {"source": source, "mode": mode, "stdin": stdin, "response": body}
     return out
 
 
