@@ -194,6 +194,20 @@ class CFG:
     def has_loops(self) -> bool:
         return bool(self.back_edges)
 
+    def flows_to_exit(self, block_id: str) -> bool:
+        """True when control leaving ``block_id`` reaches EXIT rather than another block.
+
+        This is not the same as "has no successors": the CFG records the implicit exit node
+        as an explicit ``EXIT`` successor, so a ``return`` block's successors are
+        ``("EXIT",)``. Analyses that seed a boundary at the end of a function — liveness at
+        EXIT being ∅, the values that survive to the end — need this distinction, and getting
+        it wrong silently yields an empty result instead of an error.
+        """
+        block = self.block(block_id)
+        if block is None:
+            return False
+        return not block.successors or self.exit in block.successors
+
     def loop_headers(self) -> tuple[str, ...]:
         """Distinct destinations of back edges, in first-seen order."""
         seen: list[str] = []

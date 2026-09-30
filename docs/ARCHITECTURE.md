@@ -29,7 +29,7 @@ Source → Lexer → Tokens → Parser → AST → Semantic Analysis (symbols, t
 | TAC invariants | `opticode.ir` | `InvariantViolation[]` (structural checks) |
 | Blocks / CFG | `opticode.cfg` | `CFG`, `BasicBlock`, `Edge` |
 | Interpreter | `opticode.ir.interpreter` | `ExecutionOutcome` (the semantics oracle) |
-| Data flow | `opticode.analysis` | `DataFlowResult` (liveness, reaching defs, constants) |
+| Data flow | `opticode.analysis` | `FunctionAnalysis` per function: liveness, reaching defs, constants, def-use chains |
 | Dead/unreachable | `opticode.analysis` | `AnalysisReport` of `Finding`s |
 | Optimizer | `opticode.optimizer` | `OptimizationResult` (events, skipped, stats) |
 | Source generation | `opticode.codegen` | `optimized_source`, change map |
@@ -50,7 +50,7 @@ backend/opticode/
 ├── semantics/       # arith + format: single source of execution truth
 ├── ir/              # TAC model, lowering, printer, interpreter
 ├── cfg/             # basic blocks, edges, reachability, linearize
-├── analysis/        # solver, liveness, reaching defs, constprop, findings
+├── analysis/        # solver, lattice, liveness, reaching defs, constprop, results
 ├── optimizer/       # pass manager, passes, events
 ├── codegen/         # AST edits, optimized source, change map
 └── api/             # FastAPI app + schemas
@@ -138,6 +138,32 @@ Each stage field (`tokens`, `ast`, `semantic`, `ir`, `cfg`, `dataflow`, `analysi
 the stage was skipped, and `stages_skipped` says why. `ast` is `null` when the parser
 recovered from errors but built no tree at all; a partially parsed program still gets
 its partial tree.
+
+`dataflow` is keyed by function name and carries, per function:
+
+```json
+"f": {
+  "name": "f",
+  "instructions": { "i3": { "liveness": {...}, "reaching": {...},
+                             "constants": {...} } },
+  "live_in":  { "B1": ["x"] },   "live_out":  { "B1": [] },
+  "reaching_in": { "B1": ["UNDEF(x)"] },
+  "reaching_out": { "B1": ["x@i1"] },
+  "branches": [ { "instruction_id": "i2", "operand": "t1",
+                  "value": { "kind": "const", "value": 1, "type": "int" },
+                  "statically_decidable": true, "always_taken": "B2" } ],
+  "chains": { "uses_of": { "x@i1": [["i3", 0]] },
+              "defs_of": { "i3#0": ["x@i1"] } },
+  "uninitialized_reads": ["i3#0"],
+  "exit_values": { "x": { "kind": "const", "value": 5, "type": "int" } },
+  "iterations": { "liveness": 4, "reaching": 5, "constant_propagation": 6 }
+}
+```
+
+`uninitialized_reads` lists every read whose only reaching definition is `UNDEF`, as
+`"instruction#operand"`. A read that reaches both `UNDEF(v)` and a real write is **not**
+listed: on that path the value is defined, and only the other path is indeterminate. It is
+the static counterpart to the interpreter's `uninitialized_reads`.
 
 ### 4.5 AST
 
@@ -280,7 +306,119 @@ must reproduce the original list exactly for a freshly built graph. Whenever a p
 deleted a block, the fall-through successor is no longer the next block in layout, so
 `linearize()` inserts an explicit `goto` **after** the block whose fall-through it repairs.
 
-### 4.9 Execution outcome
+### 4.9 Data-flow analysis
+
+All three analyses are the **same worklist algorithm** with different problem definitions, so
+they share one convergence guarantee, one trace format, and one rule about dead code. A
+problem supplies five things — `direction`, `boundary`, `initial`, `meet`, `transfer` — and
+the engine (`opticode.analysis.solver`) does the rest.
+
+```
+DataFlowProblem(name, direction, cfg, boundary, initial, meet, transfer, render)
+Solution(name, direction, block_in, block_out, iterations, trace, trace_truncated)
+```
+
+Three engine decisions are load-bearing:
+
+* **Only reachable blocks are solved.** An unreachable block keeps the initial value and is
+  never a neighbour of a reachable one, so dead code cannot invent a fact. Unreachable
+  blocks are *absent* from `block_in`/`block_out` rather than present-with-a-default, so a
+  caller cannot mistake dead code for an answer.
+* **Seeding order is reverse postorder going forward and postorder going backward.** Both
+  approaches a definition from the side the facts flow from, which converges in far fewer
+  passes. Re-queued neighbours go to the back of the queue in that same order, so the whole
+  traversal is a function of the CFG alone and the trace is reproducible run to run.
+* **Termination is asserted, not assumed.** The engine stops at `MAX_ITERATIONS` and raises
+  `SolverError` rather than spinning. Reaching that bound means a transfer function is not
+  monotone, which is a compiler bug worth surfacing instead of hanging the request; the
+  pipeline turns it into an internal-error diagnostic.
+
+The iteration trace is capped at `MAX_TRACE_STEPS = 200` because it exists to drive a stepper
+UI that only ever shows the first few rounds. `iterations` is always the true count, and
+`trace_truncated` says whether the trace was cut.
+
+The trace lives on `Solution`. The pipeline reports per-function `iterations` rather than
+shipping three full traces per function, because a loop-heavy function can consume a
+large share of the response for data no client renders yet. The stepper will need the
+trace, so this is a deliberate omission rather than a finished design — when it lands it
+belongs behind a request parameter.
+
+#### Liveness (backward)
+
+A variable is live at a point when some path from it reaches a read without an intervening
+write. With `OUT[EXIT] = ∅`:
+
+```
+OUT[B] = ⋃ IN[S]          for every successor S of B
+IN[B]  = USE[B] ∪ (OUT[B] \ DEF[B])
+```
+
+The lattice's ⊥ is ∅ and its meet is plain set union. `USE[B]` is the set of names read
+before being written *in the same block*, so `x = 1; return x` does not count `x` as
+use-before-def. Both fall out of one backward walk per block, which is also how per-instruction
+`live_in`/`live_out` come for free from the converged block.
+
+#### Reaching definitions (forward)
+
+A definition reaches a point when every path to it passes through that definition and
+nothing later has overwritten the name. With the boundary at entry:
+
+```
+OUT[ENTRY] = { PARAM(v) : v ∈ params } ∪ { UNDEF(v) : v ∈ declared locals }
+IN[B]      = ⋃ OUT[P]         for every predecessor P of B
+OUT[B]     = GEN[B] ∪ (IN[B] \ KILL[B])
+```
+
+The ⊥ is ∅ and the meet is union. Three details that are easy to get wrong:
+
+* `GEN[B]` keeps only the **last** definition of each name in `B`. A block that writes `x`
+  twice generates just the second, because the first is overwritten before the block's exit.
+* `KILL[B]` includes `PARAM(v)` and `UNDEF(v)` for every name `B` writes. Boundary
+  definitions are not written by any instruction, so a scan of instruction definitions alone
+  would let them reach forever. They stay in `IN` at entry, which is what makes a read
+  *before* the first write still report `UNDEF`.
+* `UNDEF(v)` means "a local nothing has assigned on this path". This is the static counterpart
+  to the interpreter's `uninitialized_reads`: the same program fact, found without running.
+
+Def-use chains are derived from the solved block states by one forward walk per block, which
+keeps them consistent with the block fixed point — a use can never be handed a definition the
+block-level analysis had already killed.
+
+#### Constant propagation (forward)
+
+The domain is a three-point flat diamond:
+
+```
+      ⊤                      no information yet
+     / \
+CONST(a) NAC                provably a    /    not a constant
+     \ /
+   (join of different constants)
+```
+
+```
+IN[ENTRY] = { v ↦ NAC : v ∈ variables }    nothing is known before execution
+IN[B]     = ⋃ IN[P]
+OUT[B]    = IN[B][GEN ops]                  each instruction rewrites what it knows
+```
+
+`CONST(a) ⊓ CONST(b) = NAC` for `a ≠ b` is the whole rule: two branches that both assign `5`
+stay known, two that assign `5` and `6` come out unknown. Values are tagged with their MiniC
+type, so `CONST(5)` (int) and `CONST(5.0)` (float) never meet into a value true of neither.
+
+The instruction transfer folds `copy`, `binary`, `unary`, `itof`, and `ftoi` when their
+operands are known, and returns NAC when it cannot:
+
+* `call` → NAC, because a return value depends on arguments, global state, and callees.
+* `scanf` → NAC, because input is exactly what is not known at compile time.
+* division or modulo by a constant zero → NAC, because it **traps** and has no value.
+* a float result that is infinite or NaN → NAC, rather than a number the program could not
+  have produced.
+
+Folding goes through `opticode.semantics.arith`, the same module the interpreter uses, so
+"this expression folds to 5" and "this expression evaluates to 5" cannot drift apart.
+
+### 4.11 Execution outcome
 
 ```python
 ExecutionOutcome(status, return_value, output, steps, uninitialized_reads,
@@ -300,7 +438,7 @@ Arithmetic is never implemented in the interpreter: every operator goes through
 `opticode.semantics.arith`, the same module the constant folder uses, so an interpreted
 program and an optimized one cannot disagree about what `-7 / 2` means.
 
-### 4.10 Provenance
+### 4.11 Provenance
 
 Two identifiers make TAC explainable, and the distinction matters:
 

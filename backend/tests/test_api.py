@@ -166,6 +166,7 @@ def test_health_lists_registered_stages(client: TestClient):
         "semantic",
         "ir",
         "cfg",
+        "dataflow",
     ]
 
 
@@ -289,6 +290,104 @@ def test_cfg_stage_is_deterministic(client: TestClient):
     ] == body["cfg"]
 
 
+# ----------------------------------------------------------- dataflow stage
+
+
+def test_dataflow_payload_has_one_report_per_function(client: TestClient):
+    body = _compile(
+        client,
+        "int g() { return 1; } int f() { int x; x = g(); return x; } int main() { return f(); }",
+    )
+    dataflow = body["dataflow"]
+    assert dataflow is not None
+    assert sorted(dataflow) == ["f", "g", "main"]
+
+
+def test_dataflow_payload_carries_all_three_analyses(client: TestClient):
+    body = _compile(client, "int f(int c) { int x; if (c > 0) { x = 5; } return x; }")
+    report = body["dataflow"]["f"]
+    assert report["live_in"], "expected block-level liveness"
+    assert report["reaching_in"], "expected block-level reaching definitions"
+    assert report["instructions"], "expected per-instruction facts"
+    # Each analysis's own iteration count is reported for the UI.
+    assert set(report["iterations"]) == {
+        "liveness",
+        "reaching",
+        "constant_propagation",
+    }
+
+
+def test_dataflow_reports_constants_and_def_use_chains(client: TestClient):
+    body = _compile(client, "int f(int c) { int x; x = 5; return x; }")
+    report = body["dataflow"]["f"]
+    assert report["exit_values"]["x"] == {"kind": "const", "value": 5, "type": "int"}
+    assert "x@" in str(report["chains"]), "expected a def-use chain for x"
+    assert "defs_of" in report["chains"]
+    assert "uses_of" in report["chains"]
+
+
+def test_dataflow_reports_an_uninitialized_read(client: TestClient):
+    body = _compile(client, "int f() { int x; return x; }")
+    report = body["dataflow"]["f"]
+    assert report["uninitialized_reads"] == ["i1#0"], "expected i1 (the return) to be flagged"
+    assert report["chains"]["defs_of"]["i1#0"] == ["UNDEF(x)"]
+
+
+def test_dataflow_does_not_flag_a_read_after_an_assignment(client: TestClient):
+    body = _compile(client, "int f() { int x; x = 1; return x; }")
+    assert body["dataflow"]["f"]["uninitialized_reads"] == []
+
+
+def test_dataflow_exposes_branch_conditions(client: TestClient):
+    body = _compile(client, "int f(int c) { int x; if (1 > 0) { x = 5; } return x; }")
+    branches = body["dataflow"]["f"]["branches"]
+    assert len(branches) == 1
+    assert branches[0]["statically_decidable"] is True
+    assert branches[0]["always_taken"] == branches[0]["true_target"]
+
+
+def test_dataflow_omits_unreachable_blocks(client: TestClient):
+    """A function whose only path out is a return has unreachable code after it."""
+    body = _compile(
+        client,
+        "int f() { if (1 > 0) { return 1; } int x; x = 2; return 3; }",
+    )
+    report = body["dataflow"]["f"]
+    reachable = set(report["live_in"]) | set(report["live_out"])
+    for block_id in reachable:
+        assert block_id in {f"B{i}" for i in range(1, 20)}
+    # x only lives in the unreachable tail, so no reachable block reports it as defined.
+    assert all("x@" not in str(value) for value in report["reaching_in"].values())
+
+
+def test_dataflow_is_absent_when_the_ir_stage_failed(client: TestClient):
+    body = _compile(client, "int f() { return undeclared; }")
+    assert body["dataflow"] is None
+    assert "dataflow" in body["stages_skipped"]
+
+
+def test_dataflow_stage_is_deterministic(client: TestClient):
+    source = "int f(int n) { int s; s = 0; int i; i = 0; while (i < n) { s = s + i; i = i + 1; } return s; }"
+    assert _compile(client, source)["dataflow"] == _compile(client, source)["dataflow"]
+
+
+def test_a_non_converging_analysis_becomes_a_structured_diagnostic(
+    client: TestClient, monkeypatch
+):
+    """A solver that cannot converge is a compiler bug, not a hung request."""
+    from opticode.analysis.solver import SolverError
+
+    def explode(program, *, cfgs=None):
+        raise SolverError("liveness did not converge within 100000 block updates")
+
+    monkeypatch.setattr("opticode.compiler.analyze_program", explode)
+    body = _compile(client, "int f() { return 0; }")
+    assert body["success"] is False
+    assert [d["code"] for d in body["diagnostics"]] == ["E-INT-001"]
+    assert "did not converge" in body["diagnostics"][0]["message"]
+    assert body["dataflow"] is None
+
+
 def test_semantic_errors_stop_the_ir_stage_but_keep_the_ast(client: TestClient):
     """Partial results are the point of the pipeline: the AST survives, IR does not."""
     body = _compile(client, "int f() { return undeclared; }")
@@ -315,7 +414,14 @@ def test_lexical_errors_stop_before_semantic(client: TestClient):
 
 def test_timings_include_the_new_stages(client: TestClient):
     body = _compile(client, "int f() { return 0; }")
-    assert set(body["timings"]) == {"tokens", "ast", "semantic", "ir", "cfg"}
+    assert set(body["timings"]) == {
+        "tokens",
+        "ast",
+        "semantic",
+        "ir",
+        "cfg",
+        "dataflow",
+    }
 
 
 def test_compile_output_is_deterministic(client: TestClient):

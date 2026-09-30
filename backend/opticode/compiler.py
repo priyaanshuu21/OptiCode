@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from .analysis import analyze as analyze_program
+from .analysis.solver import SolverError
 from .cfg.graph import CFG, CFGError, build_program_cfgs
 from .core.diagnostics import Diagnostic, DiagnosticBag, DiagnosticCode, Severity, Stage
 from .core.pipeline import MAX_SOURCE_SIZE, CompileMode, Pipeline, PipelineState, StageOutcome
@@ -132,6 +134,33 @@ def _stage_cfg(state: PipelineState) -> StageOutcome:
     return StageOutcome(name="cfg", value=cfgs)
 
 
+def _stage_dataflow(state: PipelineState) -> StageOutcome:
+    """Run liveness, reaching definitions, and constant propagation over every function.
+
+    This stage only reads the graphs the CFG stage already built — it passes them in rather
+    than rebuilding, so three analyses cost one graph. It is registered under ``Stage.IR``
+    because dataflow runs on TAC and reports compiler-level facts, not user-level errors.
+
+    The analyses are total over well-formed TAC: a transfer function that cannot converge is
+    a compiler bug, so :class:`SolverError` becomes an internal error and stops the pipeline
+    rather than hanging the request.
+    """
+    lowered = state.get("ir")
+    cfgs = state.get("cfg")
+    if lowered is None or cfgs is None:
+        return StageOutcome(name="dataflow", ran=False)
+    try:
+        results = analyze_program(lowered.program, cfgs=cfgs)
+    except SolverError as error:
+        state.diagnostics.error(
+            DiagnosticCode.E001_INTERNAL_UNEXPECTED,
+            f"a data-flow analysis did not converge: {error}",
+            stage=Stage.IR,
+        )
+        return StageOutcome(name="dataflow", ran=False, errored=True)
+    return StageOutcome(name="dataflow", value=results)
+
+
 # ------------------------------------------------------------------- pipeline
 
 
@@ -142,6 +171,7 @@ def build_pipeline() -> Pipeline:
     pipeline.register("semantic", Stage.SEMANTIC, _stage_semantic)
     pipeline.register("ir", Stage.IR, _stage_ir)
     pipeline.register("cfg", Stage.IR, _stage_cfg)
+    pipeline.register("dataflow", Stage.IR, _stage_dataflow)
     return pipeline
 
 
