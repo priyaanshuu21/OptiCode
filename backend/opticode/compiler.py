@@ -19,11 +19,14 @@ from .cfg.graph import CFG, CFGError, build_program_cfgs
 from .core.diagnostics import Diagnostic, DiagnosticBag, DiagnosticCode, Severity, Stage
 from .core.pipeline import MAX_SOURCE_SIZE, CompileMode, Pipeline, PipelineState, StageOutcome
 from .core.spans import SourceSpan
-from .ir.invariants import check_program
+from .ir.invariants import InvariantViolation, check_program
 from .ir.lower import lower
 from .ir.serialize import serialize_ir
 from .lexer.lexer import Lexer
 from .lexer.tokens import Token
+from .optimizer.manager import DEFAULT_MAX_ITERATIONS, OptimizationError
+from .optimizer.manager import optimize as optimize_program
+from .optimizer.passes import PassError
 from .parser.parser import Parser
 from .parser.serialize import serialize_program
 from .semantic.analyzer import analyze
@@ -196,6 +199,74 @@ def _stage_analysis(state: PipelineState) -> StageOutcome:
     return StageOutcome(name="analysis", value=report.to_dict())
 
 
+def _stage_optimizer(state: PipelineState) -> StageOutcome:
+    """Run the optimization passes and verify the result by execution.
+
+    Two kinds of failure are handled, and both are compiler bugs rather than anything the
+    user wrote:
+
+    * A pass breaking one of its own structural guarantees, or the round cap being reached.
+      The optimized program is discarded and ``E-OPT-001`` is reported.
+    * The interpreter oracle finding that the optimized program prints something else,
+      returns something else, or traps differently. Same outcome, and this is the case the
+      oracle exists for: a wrong optimization must never reach the user.
+
+    In both cases ``ir`` keeps holding the *original* program, so the response still has a
+    correct TAC to show and codegen still has valid input. Only ``optimization`` goes missing.
+    """
+    lowered = state.get("ir")
+    if lowered is None:
+        return StageOutcome(name="optimization", ran=False)
+    if state.mode != CompileMode.OPTIMIZE:
+        # `analyze` is the default mode and its job is to explain the program as written.
+        # Running the optimizer there would rewrite the very TAC the analysis findings are
+        # about, and would attach an optimization summary to a request that never asked for
+        # one. The stage reports itself as skipped so the client can tell "not requested"
+        # apart from "ran and found nothing to do".
+        return StageOutcome(name="optimization", ran=False)
+    options = state.options or {}
+    try:
+        result = optimize_program(
+            lowered.program,
+            passes=options.get("passes"),
+            max_iterations=int(options.get("max_iterations") or DEFAULT_MAX_ITERATIONS),
+        )
+    except OptimizationError as error:
+        state.diagnostics.error(
+            DiagnosticCode.E500_OPTIMIZER_INTERNAL,
+            f"the optimizer produced a program that is not equivalent to the original: "
+            f"{error}",
+            stage=Stage.OPTIMIZER,
+        )
+        return StageOutcome(name="optimization", ran=False, errored=True)
+    except (PassError, InvariantViolation) as error:
+        state.diagnostics.error(
+            DiagnosticCode.E500_OPTIMIZER_INTERNAL,
+            f"an optimization pass broke a structural guarantee: {error}",
+            stage=Stage.OPTIMIZER,
+        )
+        return StageOutcome(name="optimization", ran=False, errored=True)
+
+    # The oracle could not run anything — a program whose every entry point takes arguments
+    # has no callable entry. That is a coverage limitation, not a failure, so it is reported
+    # as information and the optimized program is kept.
+    report = result.verification
+    if result.changed and report is not None and report.skipped:
+        state.diagnostics.info(
+            DiagnosticCode.E501_OPTIMIZED,
+            f"the optimizer {result.summary()}, but no entry point takes no arguments, "
+            "so the result could not be verified",
+            stage=Stage.OPTIMIZER,
+        )
+    elif result.changed:
+        state.diagnostics.info(
+            DiagnosticCode.E501_OPTIMIZED,
+            f"the optimizer {result.summary()}",
+            stage=Stage.OPTIMIZER,
+        )
+    return StageOutcome(name="optimization", value=result.to_dict())
+
+
 # ------------------------------------------------------------------- pipeline
 
 
@@ -208,6 +279,7 @@ def build_pipeline() -> Pipeline:
     pipeline.register("cfg", Stage.IR, _stage_cfg)
     pipeline.register("dataflow", Stage.IR, _stage_dataflow)
     pipeline.register("analysis", Stage.ANALYSIS, _stage_analysis)
+    pipeline.register("optimization", Stage.OPTIMIZER, _stage_optimizer)
     return pipeline
 
 

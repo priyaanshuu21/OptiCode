@@ -145,13 +145,19 @@ def test_solver_omits_unreachable_blocks_entirely():
 def test_solver_trace_is_capped_and_flagged():
     """A trace longer than the cap keeps the first N steps and says so."""
     # Many *blocks*, not many instructions: a single straight-line block converges in one
-    # update however long it is. Each `if` adds two blocks and roughly two updates, so 80 of
-    # them comfortably overruns MAX_TRACE_STEPS.
+    # update however long it is. Each `if` adds two blocks and costs two updates, so 120 of
+    # them overruns MAX_TRACE_STEPS by a comfortable margin.
+    #
+    # The margin was larger before the worklist was fixed to re-queue a block's *dependents*
+    # rather than its neighbours, because that change also removed a layer of redundant
+    # re-processing: 80 `if`s converged in 161 updates where they previously needed well over
+    # 200. The assertion is deliberately unchanged rather than weakened to match, so the
+    # fixture has to keep genuinely outrunning the cap.
     source = (
         "int f(int c) {\n"
         "  int x;\n"
         "  x = 0;\n"
-        + "".join(f"  if (c > {i}) {{ x = x + {i}; }}\n" for i in range(80))
+        + "".join(f"  if (c > {i}) {{ x = x + {i}; }}\n" for i in range(120))
         + "  return x;\n"
         "}\n"
     )

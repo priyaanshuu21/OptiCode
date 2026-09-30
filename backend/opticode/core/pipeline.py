@@ -134,13 +134,21 @@ class Pipeline:
 
             elapsed = time.perf_counter() - started
             state.timings[name] = elapsed
-            state.stages_run.append(name)
 
             if outcome is None:
                 outcome = StageOutcome(name=name)
             if outcome.errored:
+                state.stages_run.append(name)
                 halted = True
                 continue
+            if not outcome.ran:
+                # The stage looked at the state and decided it had nothing to do — an
+                # optional stage that does not apply to this request, not a stage that
+                # failed. Reporting it as run would tell the client it produced a result it
+                # never produced, which is why `ran=False` lands in `stages_skipped`.
+                state.stages_skipped.append(name)
+                continue
+            state.stages_run.append(name)
             if outcome.value is not None:
                 state.put(name, outcome.value)
             if state.has_errors():

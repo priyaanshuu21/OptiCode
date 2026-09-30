@@ -6,7 +6,8 @@ backend output.
 
 ```
 Source → Lexer → Parser → AST → Semantic → TAC → Basic Blocks → CFG
-       → Data Flow → Dead/Unreachable Analysis → Optimization → Optimized Source
+       → Data Flow → Dead/Unreachable Analysis → Optimization (fixpoint + verification)
+       → Optimized Source
 ```
 
 Full documentation lands progressively in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
@@ -22,11 +23,15 @@ and [`docs/LANGUAGE.md`](docs/LANGUAGE.md).
 | TAC lowering | done |
 | Basic blocks, CFG, interpreter | done |
 | Data-flow analysis | done |
-| Dead-code analysis, optimizer, codegen, frontend | not started |
+| Dead-code analysis | done |
+| Optimizer | done |
+| Codegen, frontend | not started |
 
-`/api/compile` currently returns `tokens`, `ast`, `semantic`, `ir`, `cfg`, and `dataflow`.
-Later stages run automatically as they land. See `docs/ARCHITECTURE.md` for scope and
-`docs/LANGUAGE.md` for the language rules.
+`/api/compile` returns `tokens`, `ast`, `semantic`, `ir`, `cfg`, `dataflow`, and
+`analysis`. The `optimization` payload appears when the request asks for `mode: "optimize"`,
+which runs five passes to a fixpoint and then verifies the result by running both programs
+in the interpreter. See `docs/ARCHITECTURE.md` for scope and `docs/LANGUAGE.md` for the
+language rules.
 
 ## Requirements
 

@@ -120,6 +120,16 @@ class DiagnosticCode(StrEnum):
     E407_CONSTANT_CONDITION = "I-ANL-003"
     E408_DIVISION_BY_ZERO = "W-ANL-006"
 
+    # Optimizer
+    #
+    # The optimizer deletes code, so its failure modes are compiler bugs rather than user
+    # mistakes — a pass that breaks its own guarantee, or the interpreter oracle finding that
+    # the optimized program does something the original did not. Both are reported here and
+    # both leave the original program in place, so a user gets a working unoptimized compile
+    # rather than a failed request.
+    E500_OPTIMIZER_INTERNAL = "E-OPT-001"
+    E501_OPTIMIZED = "I-OPT-001"
+
 
 @dataclass(frozen=True, slots=True)
 class RelatedInformation:

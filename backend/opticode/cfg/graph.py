@@ -417,27 +417,34 @@ def _connect(
         transfers: list[tuple[str, EdgeKind]] = []
         terminator = block.terminator()
 
-        if terminator is not None:
-            if terminator.opcode is Opcode.GOTO:
-                target = label_to_block.get(terminator.target or "")
-                if target is None:
-                    raise CFGError(f"{terminator.id} jumps to unknown label")
-                transfers.append((target, EdgeKind.JUMP))
-            elif terminator.opcode is Opcode.IF_FALSE:
-                target = label_to_block.get(terminator.target or "")
-                if target is None:
-                    raise CFGError(f"{terminator.id} jumps to unknown label")
-                transfers.append((target, EdgeKind.FALSE))
-                if next_id is None:
-                    raise CFGError(
-                        f"{terminator.id} is the last instruction of {block.id}, "
-                        f"so its condition has nowhere to fall through"
-                    )
-                transfers.append((next_id, EdgeKind.TRUE))
-            elif terminator.opcode is Opcode.RETURN:
-                transfers.append((EXIT, EdgeKind.RETURN))
-            elif next_id is not None:
+        if terminator is None:
+            # A block can be empty — one that holds nothing but the labels marking it, which
+            # is what `continue` at the very end of a loop body lowers to. Such a block still
+            # has to fall through to whatever follows it in layout order, or the edge
+            # silently disappears and every analysis downstream is solving a different
+            # program than the one the interpreter runs.
+            if next_id is not None:
                 transfers.append((next_id, EdgeKind.FALLTHROUGH))
+        elif terminator.opcode is Opcode.GOTO:
+            target = label_to_block.get(terminator.target or "")
+            if target is None:
+                raise CFGError(f"{terminator.id} jumps to unknown label")
+            transfers.append((target, EdgeKind.JUMP))
+        elif terminator.opcode is Opcode.IF_FALSE:
+            target = label_to_block.get(terminator.target or "")
+            if target is None:
+                raise CFGError(f"{terminator.id} jumps to unknown label")
+            transfers.append((target, EdgeKind.FALSE))
+            if next_id is None:
+                raise CFGError(
+                    f"{terminator.id} is the last instruction of {block.id}, "
+                    "so its condition has nowhere to fall through"
+                )
+            transfers.append((next_id, EdgeKind.TRUE))
+        elif terminator.opcode is Opcode.RETURN:
+            transfers.append((EXIT, EdgeKind.RETURN))
+        elif next_id is not None:
+            transfers.append((next_id, EdgeKind.FALLTHROUGH))
 
         successors[block.id] = _dedupe([target for target, _ in transfers])
         for target, kind in transfers:

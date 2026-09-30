@@ -214,17 +214,17 @@ def solve(problem: DataFlowProblem[T]) -> Solution[T]:
             trace_truncated = True
 
         if changed:
-            # Re-queued neighbours go to the back of the queue in seed order, so the
-            # traversal order stays a function of the CFG alone and the trace is
-            # reproducible run to run.
+            # Re-queued blocks go to the back of the queue in seed order, so the traversal
+            # order stays a function of the CFG alone and the trace is reproducible run to
+            # run.
             fresh = [
-                neighbour
-                for neighbour in _neighbours(problem, block, blocks)
-                if neighbour not in queued
+                dependent
+                for dependent in _dependents(problem, block, blocks)
+                if dependent not in queued
             ]
-            for neighbour in sorted(set(fresh), key=lambda item: rank.get(item, len(rank))):
-                queued.add(neighbour)
-                worklist.append(neighbour)
+            for dependent in sorted(set(fresh), key=lambda item: rank.get(item, len(rank))):
+                queued.add(dependent)
+                worklist.append(dependent)
 
     return Solution(
         name=problem.name,
@@ -290,16 +290,43 @@ def _recompute(
 def _neighbours(
     problem: DataFlowProblem[T], block: BasicBlock, blocks: dict[str, BasicBlock]
 ) -> Iterator[str]:
-    """The blocks whose values this one depends on, restricted to reachable blocks.
+    """The blocks whose values this one *reads*, restricted to reachable blocks.
 
-    A forward analysis reads its predecessors' OUT; a backward analysis reads its
-    successors' IN. Either way an unreachable neighbour is skipped, which is what keeps
-    dead code out of reachable results.
+    A forward analysis reads its predecessors' OUT; a backward analysis reads its successors'
+    IN. Either way an unreachable neighbour is skipped, which is what keeps dead code out of
+    reachable results.
     """
     if problem.direction is Direction.FORWARD:
         source = block.predecessors
     else:
         source = block.successors
+    for other in source:
+        if other in blocks:
+            yield other
+
+
+def _dependents(
+    problem: DataFlowProblem[T], block: BasicBlock, blocks: dict[str, BasicBlock]
+) -> Iterator[str]:
+    """The blocks that must be revisited because *this* block's result changed.
+
+    This is the mirror image of :func:`_neighbours`, and mixing the two up silently
+    produces wrong answers rather than errors. A forward analysis publishes ``OUT[B]``,
+    which only B's *successors* ever read; re-queueing B's predecessors instead pushes
+    information backwards, where nothing consumes it. The reverse sweep stops as soon as the
+    worklist empties, so the block that was never revisited keeps the value it was given on
+    the first pass and the "fixed point" is not one.
+
+    That failure needs a back edge to show up. In straight-line code the reverse postorder
+    seed order already visits every block after its predecessors, so each block is computed
+    correctly on the first sweep and nothing ever depends on re-queueing. A loop changes
+    that: the header's OUT changes on later sweeps, and a block reachable only from the
+    header — the loop's exit — never learns about it.
+    """
+    if problem.direction is Direction.FORWARD:
+        source = block.successors
+    else:
+        source = block.predecessors
     for other in source:
         if other in blocks:
             yield other

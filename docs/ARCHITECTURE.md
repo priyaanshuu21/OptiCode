@@ -16,9 +16,12 @@ reason.**
 Source → Lexer → Tokens → Parser → AST → Semantic Analysis (symbols, types)
        → TAC lowering → Basic Blocks → CFG → Data-flow Analyses
        → Dead/Unreachable analysis (findings + explanations)
-       → Optimization passes (events, stats) → Optimized IR/CFG
-       → AST edits → Optimized source (+ interpreter verification)
+       → Optimization passes to a fixpoint (events, stats)
+       → Interpreter verification of the optimized IR
+       → AST edits → Optimized source
 ```
+
+The `optimization` stage runs only when `mode` is `optimize`; see §6.1.
 
 | Stage | Package | Main output |
 |---|---|---|
@@ -31,7 +34,7 @@ Source → Lexer → Tokens → Parser → AST → Semantic Analysis (symbols, t
 | Interpreter | `opticode.ir.interpreter` | `ExecutionOutcome` (the semantics oracle) |
 | Data flow | `opticode.analysis` | `FunctionAnalysis` per function: liveness, reaching defs, constants, def-use chains |
 | Dead/unreachable | `opticode.analysis` | `AnalysisReport` of `Finding`s |
-| Optimizer | `opticode.optimizer` | `OptimizationResult` (events, skipped, stats) |
+| Optimizer | `opticode.optimizer` | `OptimizationResult` (events, per-pass stats, verification) |
 | Source generation | `opticode.codegen` | `optimized_source`, change map |
 | API | `opticode.api` | FastAPI app, Pydantic schemas |
 
@@ -80,9 +83,10 @@ Every task must respect these.
 6. **Deterministic IDs.** `n#` AST nodes, `i#` instructions, `B#` blocks, `t#` temps,
    `L#` labels, `d#` definitions, `f#` findings, `o#` optimization events. Preserved
    instructions keep their original ids in optimized IR.
-7. **Optimizations act on proven facts only.** Every decision is recorded as an
-   `OptimizationEvent`; every refusal is recorded as a `SkippedOptimization` with a
-   reason.
+7. **Optimizations act on proven facts only, and are checked by execution.** Every
+   decision is recorded as an `OptimizationEvent`, and every rewrite is followed by a
+   structural check plus a differential run of the original against the optimized
+   program. A difference discards the optimization (§6.4).
 8. **No compiler logic in the frontend.** The UI renders backend data and does layout.
 9. **Synthetic instructions are invisible.** Implicit end-of-function `return`s are
    flagged `synthetic` and never reported to the user.
@@ -191,6 +195,37 @@ function:
 
 `kept_reason` is present only on a finding whose action is `kept`, and `duplicate_of` only
 when the semantic stage already reported the same fact.
+
+`optimization` is present only for `mode: "optimize"`, and carries the whole run:
+
+```json
+"optimization": {
+  "changed": true,
+  "verified": true,
+  "rounds": 2,
+  "removed_instructions": 5,
+  "events_truncated": false,
+  "passes": [ { "name": "constant-folding", "description": "...",
+                "iterations": 2, "applications": 1, "removed": 0,
+                "changed": true } ],
+  "events": [ { "pass": "dead-assignments", "function": "main", "kind": "removed",
+                "detail": "store to `dead` is never read", "before": "dead = 9",
+                "instruction_ids": ["i2"] } ],
+  "stats": { "before": { "functions": 1, "instructions": 9,
+                         "temps": 2, "labels": 1 },
+             "after":  { "functions": 1, "instructions": 4,
+                         "temps": 0, "labels": 1 } },
+  "verification": { "verified": true, "skipped": false, "cases_checked": 3,
+                    "cases_inconclusive": 0, "cases_truncated": false,
+                    "first_difference": null, "cases": [ ... ],
+                    "unverified_entries": [] },
+  "ir": { "...": "the optimized TAC" }
+}
+```
+
+The nested `ir` is the **optimized** program; the top-level `ir` stays the one as written,
+so the panel has both sides of the comparison. `events` is capped at 2000 entries and
+`events_truncated` says when that happened.
 
 ### 4.5 AST
 
@@ -563,6 +598,12 @@ variable), so a source expression can never be evaluated twice.
   number of reported errors is capped to keep the UI readable.
 * Any unexpected exception is caught at the stage boundary and converted to
   `E-INT-001` with the exception type and message only.
+* The optimizer's failure modes are compiler bugs, not user mistakes. A pass breaking its
+  own guarantee, the round cap being reached, and the oracle finding a behavioural
+  difference are all reported as `E-OPT-001`. In every case the optimized program is
+  discarded and `ir` keeps the original, so the user still gets a correct compile.
+* `I-OPT-001` is an informational summary of what the optimizer did. It is not a
+  warning and never marks a request as failed.
 
 ## 6. Optimization strategy
 
@@ -574,3 +615,86 @@ removed or reordered, and loops are never deleted.
 Verification runs the TAC interpreter on the original and the optimized IR and compares
 status, return value, and output. If they differ the optimized result is discarded and
 an internal-error diagnostic is returned instead of shipping a wrong answer.
+
+### 6.1 Stage behaviour
+
+The `optimization` stage runs only when `mode` is `optimize`. In the default `analyze`
+mode it reports itself as **skipped** rather than run: that mode's job is to explain the
+program as written, and rewriting the TAC would contradict the findings the analysis stage
+just produced about it. A stage that declines to run is recorded in `stages_skipped`, which
+is what separates "not requested" from "ran and found nothing to do".
+
+When optimization fails — a pass breaking its own guarantee, the round cap being reached,
+or the oracle finding a difference — the response is a failure with `E-OPT-001`, and `ir`
+still carries the **original** program. A user gets a correct, complete compile of the code
+they wrote plus a diagnostic explaining that the optimization was abandoned. Serving a
+wrong program as a success would be far worse than not optimizing at all.
+
+### 6.2 The passes
+
+Five passes run in this order until a whole round changes nothing. The order is the
+pipeline's, not the caller's: `CompileOptions.passes` selects a subset but cannot reorder
+it, so the manager never has to special-case an arbitrary sequence.
+
+| Pass | Removes | Uses |
+|---|---|---|
+| `constant-propagation` | nothing; rewrites operands in place | reaching constants |
+| `constant-folding` | the now-dead binary/unary operation | reaching constants |
+| `branch-folding` | the conditional jump, when the test is a known constant | reaching constants |
+| `unreachable-blocks` | blocks with no path from the entry | CFG reachability |
+| `dead-assignments` | stores nobody reads | liveness (`dest_live`) |
+
+Two safety rules are worth stating separately because they are the ones that could produce
+a wrong answer rather than a rejected optimization:
+
+* **Reachable side effects are never removed.** A `print`, `scanf`, or `call` in live code
+  is observable even though it stores nothing. Unreachable code is different: an
+  unreachable block can be deleted wholesale, side effects included, since nothing can
+  observe it — except the final `return` of a non-void function, which stays so the
+  function cannot fall off the end of its TAC.
+* **Folding never invents a trap.** `1 / 0` is left as a division, because folding it would
+  mean *producing* the trap rather than preserving it, and the interpreter has to report it
+  with the same message at the same point.
+
+### 6.3 The fixpoint
+
+`run_passes` re-runs every pass until a full round reports no change, capped at
+`max_iterations`. Two details matter:
+
+* The structural invariants are re-checked after **every individual rewrite**, not once at
+  the end. A pass that deletes a definition someone still reads leaves a program that
+  crashes in the interpreter; finding it at the point of the bad rewrite names the pass
+  that caused it.
+* `changed` must mean "the program is different", not "this pass looked at something". A
+  pass that rewrites an instruction into an identical one and reports a change will spin
+  the loop until it hits the cap.
+
+Passes are stateless and shared across requests (`DEFAULT_PASSES` holds instances), so a
+pass that cached anything on `self` would leak from one request into the next.
+
+### 6.4 Verification coverage
+
+The oracle calls every zero-parameter function with a small fixed set of inputs
+(`""`, `"0"`, `"3 4 5 6 7"`) under bounded interpreter limits. This is evidence, not proof,
+and the payload says which:
+
+* `verified: true` means every case that ran matched.
+* `skipped: true` means **no case could run** — typically a program whose only entry point
+  takes arguments. That is a coverage limitation, not a failure, and the optimized program
+  is kept.
+* `cases_truncated` says the case budget stopped the sweep before every entry was tried.
+
+The oracle earns its keep by finding real bugs. During development it caught a worklist
+that re-queued a block's *neighbours* instead of its *dependents*, and a label-only block
+(`continue` as the last statement of a loop body) that was given no fall-through edge.
+Neither crashed anything: both made the analyses solve a subtly different program from the
+one the interpreter ran, and both were caught only by comparing the two programs'
+observable behaviour.
+
+### 6.5 Result payload
+
+`OptimizationResult` serializes with the stats before and after, a per-pass counter
+(iterations, applications, removed), a capped event log, and the optimized TAC under `ir`.
+The top-level `ir` stays the *unoptimized* program: keeping them in step would be worse
+than useless, since the before/after pair is the teaching material the panel exists to
+show.
