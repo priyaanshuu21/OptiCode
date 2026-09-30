@@ -20,11 +20,11 @@ and [`docs/LANGUAGE.md`](docs/LANGUAGE.md).
 | Parser and AST | done |
 | Semantic analysis | done |
 | TAC lowering | done |
-| Basic blocks, CFG, interpreter | not started |
+| Basic blocks, CFG, interpreter | done |
 | Analysis, optimizer, codegen, frontend | not started |
 
-`/api/compile` currently returns `tokens`, `ast`, `semantic`, and `ir`. Later stages run
-automatically as they land. See `docs/ARCHITECTURE.md` for scope and
+`/api/compile` currently returns `tokens`, `ast`, `semantic`, `ir`, and `cfg`. Later stages
+run automatically as they land. See `docs/ARCHITECTURE.md` for scope and
 `docs/LANGUAGE.md` for the language rules.
 
 ## Requirements

@@ -311,7 +311,8 @@ class _FunctionLowerer:
         left = self.lower_expr(node.left)
         if left is None:
             raise LowerError("logical expression has a missing left operand")
-        left = self._promote(left, TypeName.INT, node.left or node)
+        # As with a branch condition, an operand is tested for truth rather than
+        # truncated, so a float of 0.5 counts as true here as it does in `if`.
         left_origin = (node.left.id if node.left else node.id,)
 
         right = self.lower_expr
@@ -327,7 +328,7 @@ class _FunctionLowerer:
                 raise LowerError("logical expression has a missing right operand")
             self._build(
                 Opcode.IF_FALSE, node.span, node=node,
-                operands=(self._promote(value, TypeName.INT, node.right or node),),
+                operands=(value,),
                 origins=(node.right.id if node.right else node.id,),
                 target=short_circuit,
             )
@@ -350,7 +351,7 @@ class _FunctionLowerer:
                 raise LowerError("logical expression has a missing right operand")
             self._build(
                 Opcode.IF_FALSE, node.span, node=node,
-                operands=(self._promote(value, TypeName.INT, node.right or node),),
+                operands=(value,),
                 origins=(node.right.id if node.right else node.id,),
                 target=is_false,
             )
@@ -507,10 +508,16 @@ class _FunctionLowerer:
         )
 
     def _lower_condition(self, node: Expr | None) -> Operand:
+        """Lower a condition to the operand that ``if_false`` tests.
+
+        The operand is *not* narrowed to ``int``: a float condition is compared against
+        zero, so truncating ``0.5`` to ``0`` first would invert the test and silently
+        change which branch runs.
+        """
         operand = self.lower_expr(node)
         if operand is None:
             raise LowerError("condition has no expression")
-        return self._promote(operand, TypeName.INT, node)
+        return operand
 
     def _lower_if(self, node: If) -> None:
         condition = self._lower_condition(node.condition)
@@ -582,11 +589,17 @@ class _FunctionLowerer:
                 origins=(node.condition.id,),
                 target=end,
             )
-        self._loops.append(_LoopContext(break_label=end, continue_label=start))
+        # 'continue' runs the update, so it must land *before* it rather than back at the
+        # condition; jumping to the condition would re-test without ever incrementing and
+        # so spin forever.
+        cont = self._new_label("Lcont") if node.update is not None else start
+        self._loops.append(_LoopContext(break_label=end, continue_label=cont))
         try:
             self.lower_stmt(node.body)
         finally:
             self._loops.pop()
+        if cont != start:
+            self._build(Opcode.LABEL, node.span, node=node, target=cont)
         self.lower_stmt(node.update)
         self._build(Opcode.GOTO, node.span, node=node, target=start)
         self._build(Opcode.LABEL, node.span, node=node, target=end)

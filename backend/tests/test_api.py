@@ -165,6 +165,7 @@ def test_health_lists_registered_stages(client: TestClient):
         "ast",
         "semantic",
         "ir",
+        "cfg",
     ]
 
 
@@ -215,6 +216,79 @@ def test_ir_instructions_carry_their_queries(client: TestClient):
     assert set(instruction) >= {"uses", "defs", "has_side_effects", "may_trap", "ast_node_id"}
 
 
+# --------------------------------------------------------------- cfg stage
+
+
+def test_cfg_payload_has_one_graph_per_function(client: TestClient):
+    body = _compile(
+        client,
+        "int f(int n) { int s = 0; while (n > 0) { s = s + n; n = n - 1; } return s; }"
+        " int g() { return 1; }",
+    )
+    cfg = body["cfg"]
+    assert set(cfg) == {"f", "g"}
+    assert cfg["f"]["return_type"] == "int"
+    assert cfg["f"]["block_count"] > 1
+    assert cfg["f"]["has_loops"] is True
+    # Two blocks even for a one-line function: the synthetic trailing `return 0` follows
+    # the real `return`, and an instruction after a return always starts a new block.
+    assert cfg["g"]["block_count"] == 2
+    assert cfg["g"]["has_loops"] is False
+    assert cfg["g"]["blocks"][1]["leader_reason"] == "follows return"
+    assert cfg["g"]["blocks"][1]["reachable"] is False
+
+
+def test_cfg_blocks_carry_their_edges_and_reasons(client: TestClient):
+    body = _compile(client, "int f(int n) { if (n) { return 1; } return 0; }")
+    graph = body["cfg"]["f"]
+    reasons = {block["leader_reason"] for block in graph["blocks"]}
+    assert "function entry" in reasons
+    assert any(reason.startswith("target of if_false") for reason in reasons)
+    assert graph["edges"]
+    for edge in graph["edges"]:
+        assert set(edge) == {"src", "dst", "kind", "is_back_edge"}
+    assert graph["rpo"][0] == graph["entry"]
+    assert graph["back_edges"] == []
+
+
+def test_cfg_marks_back_edges_for_loops(client: TestClient):
+    body = _compile(
+        client,
+        "int f(int n) { int s = 0; while (n > 0) { s = s + 1; n = n - 1; } return s; }",
+    )
+    graph = body["cfg"]["f"]
+    assert graph["back_edges"]
+    assert all(edge["is_back_edge"] for edge in graph["back_edges"])
+    # The retreating edge is what makes this a loop, and it lands on a real block.
+    for edge in graph["back_edges"]:
+        assert edge["dst"] in {block["id"] for block in graph["blocks"]}
+        assert edge["src"] != edge["dst"]
+
+
+def test_cfg_reports_unreachable_blocks(client: TestClient):
+    body = _compile(client, "int f() { return 1; int dead = 2; return dead; }")
+    graph = body["cfg"]["f"]
+    # B1 returns; B2 assigns the dead local and B3 returns it. Dead code is *kept* and
+    # marked unreachable rather than deleted, because Task 5 has to be able to explain it.
+    dead = [block["id"] for block in graph["blocks"] if not block["reachable"]]
+    assert dead == ["B2", "B3"]
+    assert graph["blocks"][0]["reachable"] is True
+
+
+def test_cfg_is_absent_when_the_ir_stage_failed(client: TestClient):
+    body = _compile(client, "int f() { return undeclared; }")
+    assert body["ir"] is None
+    assert body["cfg"] is None
+    assert "cfg" in body["stages_skipped"]
+
+
+def test_cfg_stage_is_deterministic(client: TestClient):
+    body = _compile(client, "int f(int n) { while (n) { n = n - 1; } return n; }")
+    assert _compile(client, "int f(int n) { while (n) { n = n - 1; } return n; }")[
+        "cfg"
+    ] == body["cfg"]
+
+
 def test_semantic_errors_stop_the_ir_stage_but_keep_the_ast(client: TestClient):
     """Partial results are the point of the pipeline: the AST survives, IR does not."""
     body = _compile(client, "int f() { return undeclared; }")
@@ -241,7 +315,7 @@ def test_lexical_errors_stop_before_semantic(client: TestClient):
 
 def test_timings_include_the_new_stages(client: TestClient):
     body = _compile(client, "int f() { return 0; }")
-    assert set(body["timings"]) == {"tokens", "ast", "semantic", "ir"}
+    assert set(body["timings"]) == {"tokens", "ast", "semantic", "ir", "cfg"}
 
 
 def test_compile_output_is_deterministic(client: TestClient):

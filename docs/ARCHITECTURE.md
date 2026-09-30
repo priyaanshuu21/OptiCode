@@ -35,8 +35,8 @@ Source → Lexer → Tokens → Parser → AST → Semantic Analysis (symbols, t
 | Source generation | `opticode.codegen` | `optimized_source`, change map |
 | API | `opticode.api` | FastAPI app, Pydantic schemas |
 
-Arithmetic rules live in exactly one place, `opticode.semantics.arith`, and are shared
-by the constant folder and the interpreter so the two can never disagree.
+Arithmetic and formatting rules live in exactly one place, `opticode.semantics`, and are
+shared by the constant folder and the interpreter so the two can never disagree.
 
 ## 2. Package layout
 
@@ -47,9 +47,9 @@ backend/opticode/
 ├── lexer/
 ├── parser/          # AST, recursive-descent parser, serializer, unparser
 ├── semantic/        # symbols, types, analyzer, format checks, serializer
-├── semantics/       # arith: single source of arithmetic truth
+├── semantics/       # arith + format: single source of execution truth
 ├── ir/              # TAC model, lowering, printer, interpreter
-├── cfg/             # basic blocks, edges, linearize
+├── cfg/             # basic blocks, edges, reachability, linearize
 ├── analysis/        # solver, liveness, reaching defs, constprop, findings
 ├── optimizer/       # pass manager, passes, events
 ├── codegen/         # AST edits, optimized source, change map
@@ -238,7 +238,10 @@ Lowering rules that later passes depend on:
 * `&&` and `||` lower to control flow writing a 0/1 temp, so the right operand is not read
   when the left one already decides the result.
 * `for` lowers to init, condition label, `if_false`, body, continue label, update, `goto`
-  condition, end label. `break` targets the end label, `continue` the continue label.
+  condition, end label. `break` targets the end label and `continue` the continue label —
+  not the condition, since `continue` must still run the update.
+* A condition is **not** narrowed to `int`. A float condition is compared against zero, so
+  truncating `0.5` to `0` first would invert the test. The same holds for `&&` and `||`.
 * Each `scanf` argument becomes exactly one `read`; each `printf` becomes one `print`.
 * A declaration with no initializer emits nothing. It is listed in the function's
   `declared_locals` instead, because it is live from function entry while having no
@@ -247,7 +250,57 @@ Lowering rules that later passes depend on:
 * Every non-void function ends with a synthetic `return 0` so TAC is total; a caller never
   falls off the end of a function body.
 
-### 4.8 Provenance
+### 4.8 CFG
+
+```python
+BasicBlock(id, instructions, label_instructions, leader_reason,
+           successors, predecessors, reachable, span)
+Edge(src, dst, kind, is_back_edge)
+CFG(function, blocks, edges, entry, exit, rpo, back_edges)
+```
+
+`kind` is `fallthrough | true | false | jump | return`; `return` edges go to the
+implicit `EXIT`, and `ENTRY` is implicit too. `leader_reason` is a short phrase for the UI
+(`function entry`, `target of goto L3`, `follows conditional jump`, `follows return`, …).
+
+Three decisions the later passes depend on:
+
+* **Labels are not instructions.** A `label` opcode only marks a leader, so it is absorbed
+  into the block it names and never appears inside one. The block keeps it in
+  `label_instructions` so `linearize()` can re-emit it — a jump in a linearized function
+  would otherwise have nothing to land on.
+* **Unreachable blocks are kept** with `reachable=False` rather than deleted. Dead-code
+  analysis has to *see* unreachable code in order to explain it.
+* **`rpo` is reverse postorder from the entry block** and covers reachable blocks only.
+  A back edge is an edge to a node still on the depth-first stack; it is what identifies
+  loops.
+
+`linearize()` re-emits a function as a flat instruction list in block layout order, and it
+must reproduce the original list exactly for a freshly built graph. Whenever a pass has
+deleted a block, the fall-through successor is no longer the next block in layout, so
+`linearize()` inserts an explicit `goto` **after** the block whose fall-through it repairs.
+
+### 4.9 Execution outcome
+
+```python
+ExecutionOutcome(status, return_value, output, steps, uninitialized_reads,
+                 message, stopped_at, entry_function, max_depth_reached, traps)
+```
+
+* `status`: `ok | trap | timeout | input_exhausted | stack_overflow`. Traps, exhausted
+  input, and stack overflow are *outcomes*, not exceptions, so a caller always gets a
+  result back.
+* `uninitialized_reads`: names read before any write, in first-read order. The value is `0`
+  and the run still succeeds — MiniC leaves such values indeterminate.
+* `same_observable_behaviour_as()` compares `status`, `return_value`, `output`, and
+  `traps`. `steps` is excluded because an optimization may legitimately do less work, and
+  `uninitialized_reads` is excluded because a user cannot see it in the output.
+
+Arithmetic is never implemented in the interpreter: every operator goes through
+`opticode.semantics.arith`, the same module the constant folder uses, so an interpreted
+program and an optimized one cannot disagree about what `-7 / 2` means.
+
+### 4.10 Provenance
 
 Two identifiers make TAC explainable, and the distinction matters:
 

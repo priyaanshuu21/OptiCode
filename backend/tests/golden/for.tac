@@ -7,9 +7,10 @@
     i5: if_false t1 goto Lend2
     i6: t2 = s + i
     i7: s = t2
-    i8: t3 = i + 1
-    i9: i = t3
-    i10: goto Lstart1
-    i11: Lend2:
-    i12: return s
-    i13: return 0  [synthetic]
+    i8: Lcont3:
+    i9: t3 = i + 1
+    i10: i = t3
+    i11: goto Lstart1
+    i12: Lend2:
+    i13: return s
+    i14: return 0  [synthetic]

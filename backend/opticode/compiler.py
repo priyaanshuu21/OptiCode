@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from .cfg.graph import CFG, CFGError, build_program_cfgs
 from .core.diagnostics import Diagnostic, DiagnosticBag, DiagnosticCode, Severity, Stage
 from .core.pipeline import MAX_SOURCE_SIZE, CompileMode, Pipeline, PipelineState, StageOutcome
 from .core.spans import SourceSpan
@@ -109,6 +110,28 @@ def _stage_ir(state: PipelineState) -> StageOutcome:
     return StageOutcome(name="ir", value=lowered)
 
 
+def _stage_cfg(state: PipelineState) -> StageOutcome:
+    """Build a control-flow graph per function.
+
+    The lowering already guarantees every jump resolves, so a :class:`CFGError` here would
+    be a compiler bug rather than a user error — it is reported as an internal error and
+    the stage stops the pipeline.
+    """
+    lowered = state.get("ir")
+    if lowered is None:
+        return StageOutcome(name="cfg", ran=False)
+    try:
+        cfgs = build_program_cfgs(lowered.program)
+    except CFGError as error:
+        state.diagnostics.error(
+            DiagnosticCode.E001_INTERNAL_UNEXPECTED,
+            f"the CFG stage could not build a graph: {error}",
+            stage=Stage.IR,
+        )
+        return StageOutcome(name="cfg", ran=False, errored=True)
+    return StageOutcome(name="cfg", value=cfgs)
+
+
 # ------------------------------------------------------------------- pipeline
 
 
@@ -118,6 +141,7 @@ def build_pipeline() -> Pipeline:
     pipeline.register("ast", Stage.PARSER, _stage_parse)
     pipeline.register("semantic", Stage.SEMANTIC, _stage_semantic)
     pipeline.register("ir", Stage.IR, _stage_ir)
+    pipeline.register("cfg", Stage.IR, _stage_cfg)
     return pipeline
 
 
@@ -165,6 +189,7 @@ def _to_result(state: PipelineState) -> CompileResult:
     program = state.get("ast")
     semantic = state.get("semantic")
     lowered = state.get("ir")
+    cfgs = state.get("cfg")
     return CompileResult(
         success=success,
         mode=state.mode,
@@ -173,7 +198,7 @@ def _to_result(state: PipelineState) -> CompileResult:
         ast=serialize_program(program) if program is not None else None,
         semantic=serialize_semantic(semantic) if semantic is not None else None,
         ir=serialize_ir(lowered.program) if lowered is not None else None,
-        cfg=state.get("cfg"),
+        cfg=_serialize_cfgs(cfgs),
         dataflow=state.get("dataflow"),
         analysis=state.get("analysis"),
         optimization=state.get("optimization"),
@@ -182,6 +207,13 @@ def _to_result(state: PipelineState) -> CompileResult:
         stages_run=state.stages_run,
         stages_skipped=state.stages_skipped,
     )
+
+
+def _serialize_cfgs(cfgs: dict[str, CFG] | None) -> dict[str, Any] | None:
+    """Serialize per-function graphs as a name → graph mapping."""
+    if cfgs is None:
+        return None
+    return {name: cfg.to_dict() for name, cfg in cfgs.items()}
 
 
 def severity_of(diagnostic: Diagnostic) -> str:

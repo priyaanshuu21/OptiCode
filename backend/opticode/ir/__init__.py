@@ -4,12 +4,24 @@ Public surface:
 
 * :func:`lower` — turn a :class:`~opticode.semantic.analyzer.SemanticResult` into TAC.
 * :class:`IRProgram` / :class:`IRFunction` / :class:`Instruction` — the IR itself.
+* :func:`check_program` — structural and type invariants over lowered TAC.
+* :func:`interpret` / :func:`interpret_cfg` — the execution oracle.
 * :func:`print_program` — a human-readable dump for tests and the frontend.
 * :func:`serialize_ir` — the API payload.
 """
 
 from __future__ import annotations
 
+from .interpreter import (
+    DEFAULT_LIMITS,
+    ExecutionError,
+    ExecutionOutcome,
+    ExecutionStatus,
+    Interpreter,
+    InterpreterLimits,
+    interpret,
+    interpret_cfg,
+)
 from .invariants import (
     InvariantViolation,
     LoweringStats,
@@ -44,4 +56,12 @@ __all__ = [
     "print_program",
     "render_program",
     "serialize_ir",
+    "DEFAULT_LIMITS",
+    "ExecutionError",
+    "ExecutionOutcome",
+    "ExecutionStatus",
+    "Interpreter",
+    "InterpreterLimits",
+    "interpret",
+    "interpret_cfg",
 ]

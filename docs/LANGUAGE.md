@@ -311,7 +311,66 @@ target is `E-SEM-011`.
 
 ## 4. Execution semantics
 
-> Filled in once the TAC interpreter exists (Task 4).
+The TAC interpreter is the reference definition of what a MiniC program means. Everything
+here is implemented in `opticode.semantics` and reused by the optimizer, so an optimized
+program cannot develop its own opinion of arithmetic.
+
+### 4.1 Numbers
+
+* `int` is 32-bit two's complement. Every arithmetic result wraps; it does **not** trap.
+* `float` is IEEE 754 double.
+* If either operand of a binary operator is `float`, both are converted to `float` and the
+  result is `float`. `int op int` yields `int`.
+* Comparisons and `&&`, `||`, and `!` yield `int` `0` or `1`.
+
+| Operator | Result |
+|---|---|
+| `/` | quotient truncated **toward zero**: `-7 / 2` is `-3`, not `-4` |
+| `%` | remainder with the sign of the **dividend**: `-7 % 2` is `-1` |
+| `%` on floats | rejected by the analyzer |
+
+Division or modulo by zero is a **trap**. This includes float division: `1.0 / 0.0` stops
+the program rather than producing an infinity, because an optimizer that folds `x / 0.0`
+away would otherwise silently change the outcome.
+
+### 4.2 Conversions
+
+`itof` widens exactly, since every `int` is representable as a `float`. `ftoi` truncates
+toward zero: `1.9` is `1` and `-1.9` is `-1`. A float that cannot be represented is left to
+the host's `int()` conversion rather than checked, matching how a C compiler behaves.
+
+### 4.3 Truth
+
+A value is true when it is not zero. A `float` condition is compared against zero, so
+`if (0.5)` takes the true branch — the condition is **not** truncated to `int` first.
+
+### 4.4 Output
+
+`printf` writes to a buffer, not a terminal, so a run is deterministic. A `float` printed
+with `%f` is rendered with exactly six decimal places, as in C.
+
+### 4.5 Input
+
+`scanf` consumes whitespace-separated tokens from the supplied input string. Each target
+reads one token, in argument order:
+
+* `%d` into an `int` accepts an integer, and truncates a real token such as `9.87` to `9`,
+  which is what C's `scanf` does.
+* `%f` into a `float` accepts either an integer or a real token.
+* A token that does not parse, or no token left at all, ends the run with status
+  `input_exhausted`. It is an outcome, not an exception.
+
+### 4.6 Variables and returns
+
+A local declared without an initializer reads as `0`, and the name is reported in
+`uninitialized_reads`. Reading it is **not** an error — MiniC leaves such values
+indeterminate, and refusing to run would be stricter than the language.
+
+A non-void function that reaches the end of its body returns `0`. Every lowered function
+ends with a synthetic `return 0` so control never falls off the end of TAC.
+
+Recursion is unbounded in the language; the interpreter enforces a call-depth limit and a
+step limit, and reports both as statuses (`stack_overflow`, `timeout`) rather than hanging.
 
 ## 5. Deviations from C
 
