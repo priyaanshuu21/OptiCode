@@ -25,13 +25,18 @@ and [`docs/LANGUAGE.md`](docs/LANGUAGE.md).
 | Data-flow analysis | done |
 | Dead-code analysis | done |
 | Optimizer | done |
-| Codegen, frontend | not started |
+| Codegen | done |
+| Frontend | not started |
 
 `/api/compile` returns `tokens`, `ast`, `semantic`, `ir`, `cfg`, `dataflow`, and
 `analysis`. The `optimization` payload appears when the request asks for `mode: "optimize"`,
 which runs five passes to a fixpoint and then verifies the result by running both programs
-in the interpreter. See `docs/ARCHITECTURE.md` for scope and `docs/LANGUAGE.md` for the
-language rules.
+in the interpreter. `codegen` comes back with it, holding the regenerated program as source
+text, an annotated variant that shows removed lines as comments, and a change map saying what
+was rewritten and which pass justified each one. Every rewrite is verified by re-compiling the
+generated text and running the interpreter oracle against the original, so a rewrite that
+changes behaviour is discarded rather than returned. See `docs/ARCHITECTURE.md` for scope and
+`docs/LANGUAGE.md` for the language rules.
 
 ## Requirements
 

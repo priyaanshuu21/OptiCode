@@ -28,7 +28,9 @@ from .ast import (
     VarDecl,
     While,
     clone_tree,
+    containing_statements,
     node_by_id,
+    statement_index,
     walk,
 )
 from .parser import MAX_DEPTH, MAX_ERRORS, Parser, assign_ids, parse, parse_tokens
@@ -66,12 +68,14 @@ __all__ = [
     "While",
     "assign_ids",
     "clone_tree",
+    "containing_statements",
     "expression_text",
     "node_by_id",
     "parse",
     "parse_tokens",
     "serialize_node",
     "serialize_program",
+    "statement_index",
     "unparse",
     "walk",
 ]

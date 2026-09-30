@@ -54,7 +54,7 @@ from ..core.diagnostics import (
 )
 from ..core.spans import SourceSpan, union
 from ..ir.tac import TRAPPING_OPS, Instruction, IRProgram, Opcode
-from ..parser.ast import Node, Stmt, walk, walk_mut
+from ..parser.ast import Node, statement_index, walk
 from ..semantic.types import TypeName
 from .reaching import DefinitionKind
 from .results import BranchCondition, FunctionAnalysis
@@ -465,23 +465,11 @@ def _statements(ctx: _Context, block: BasicBlock) -> list[tuple[str, tuple[Instr
 def _statement_index(ast: Node) -> dict[str, str]:
     """Map every AST node id to the id of the statement that contains it.
 
-    Grouping by :attr:`Instruction.ast_node_id` alone would split one statement in two: in
-    ``i = i + 1;`` the copy records the ``Assign`` node while the addition records the
-    ``BinaryExpr``, so the statement would be reported twice and both warnings would point at
-    the same line. Resolving each instruction's node to its innermost enclosing statement
-    first is what makes one statement one finding.
-
     Without an AST the map is empty and callers fall back to the raw node id, which is the
     right degradation: the analysis still runs, it just cannot merge instructions the tree
     would have tied together.
     """
-    index: dict[str, str] = {}
-    for node, _field, parent in walk_mut(ast):
-        index[node.id] = node.id if isinstance(node, Stmt) else index.get(
-            parent.id if parent is not None else node.id,
-            node.id,
-        )
-    return index
+    return statement_index(ast)
 
 
 def _position(ctx: _Context, instruction_id: str) -> int:

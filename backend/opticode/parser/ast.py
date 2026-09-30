@@ -374,6 +374,34 @@ def iter_statements(root: Node) -> Iterator[Stmt]:
             yield node
 
 
+def statement_index(root: Node) -> dict[str, str]:
+    """Map every AST node id to the id of the statement that contains it.
+
+    Grouping instructions by their own ``ast_node_id`` splits one statement in two: in
+    ``i = i + 1;`` the copy records the ``Assign`` node while the addition records the
+    ``BinaryExpr``, so the statement would be reported twice and both findings would point
+    at the same line. Resolving each node to its innermost enclosing statement first is
+    what makes one statement one finding, and one statement one source edit.
+
+    Both the dead-code analysis and the codegen stage need exactly this map, and getting
+    them to agree matters: an analysis that says a statement is dead and a codegen that
+    edits a different statement would produce source that no longer does what the analysis
+    said it does.
+    """
+    index: dict[str, str] = {}
+    for node, _field, parent in walk_mut(root):
+        index[node.id] = node.id if isinstance(node, Stmt) else index.get(
+            parent.id if parent is not None else node.id,
+            node.id,
+        )
+    return index
+
+
+def containing_statements(root: Node) -> dict[str, Stmt]:
+    """Map statement ids to the statements themselves, for id-based rewriting."""
+    return {node.id: node for node in walk(root) if isinstance(node, Stmt)}
+
+
 def iter_expressions(root: Node) -> Iterator[Expr]:
     for node in walk(root):
         if isinstance(node, Expr):

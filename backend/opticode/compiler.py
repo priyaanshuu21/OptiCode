@@ -16,6 +16,7 @@ from .analysis import diagnostics_for
 from .analysis.results import FunctionAnalysis
 from .analysis.solver import SolverError
 from .cfg.graph import CFG, CFGError, build_program_cfgs
+from .codegen import generate_optimized_source
 from .core.diagnostics import Diagnostic, DiagnosticBag, DiagnosticCode, Severity, Stage
 from .core.pipeline import MAX_SOURCE_SIZE, CompileMode, Pipeline, PipelineState, StageOutcome
 from .core.spans import SourceSpan
@@ -264,7 +265,62 @@ def _stage_optimizer(state: PipelineState) -> StageOutcome:
             f"the optimizer {result.summary()}",
             stage=Stage.OPTIMIZER,
         )
+    state.put("optimization_result", result)
     return StageOutcome(name="optimization", value=result.to_dict())
+
+
+def _stage_codegen(state: PipelineState) -> StageOutcome:
+    """Rewrite the source from what the optimizer learned, then prove the rewrite.
+
+    Three outcomes, and they are deliberately different in kind:
+
+    * **Applied and verified.** The generated text re-compiled and behaved identically, so it
+      is returned as ``codegen.source`` with ``I-CGN-001`` noting how much changed.
+    * **Nothing to show.** The optimizer changed the TAC in ways the source cannot express, or
+      changed nothing at all. The stage still runs and still answers, because "here is your
+      source unchanged" is the useful reply and an absent stage is not.
+    * **Refused.** The self-check found a difference, so the generated text is discarded and the
+      user's own source comes back verbatim. ``W-CGN-001`` says so, since a rejected rewrite is
+      the one case where a user is losing an optimization they might otherwise have expected.
+
+    A crash here is a compiler bug, not the user's, and it must not take the response down:
+    everything upstream is still valid, so ``E-CGN-001`` is reported and the stage returns
+    without a value rather than propagating.
+    """
+    result = state.get("optimization_result")
+    program = state.get("ast")
+    if result is None or program is None:
+        return StageOutcome(name="codegen", ran=False)
+    try:
+        generated = generate_optimized_source(
+            program,
+            result,
+            original_source=state.source,
+        )
+    except Exception as error:  # noqa: BLE001 - a codegen bug must not fail the request
+        state.diagnostics.error(
+            DiagnosticCode.E600_CODEGEN_INTERNAL,
+            f"the source generator failed: {error}",
+            stage=Stage.CODEGEN,
+        )
+        return StageOutcome(name="codegen", ran=False, errored=True)
+
+    payload = generated.to_dict()
+    if not generated.applied:
+        severity = state.diagnostics.warn if generated.check is not None else state.diagnostics.info
+        severity(
+            DiagnosticCode.E602_REJECTED if generated.check is not None else DiagnosticCode.E601_REGENERATED,
+            f"the source generator kept your original source: {generated.reason}",
+            stage=Stage.CODEGEN,
+        )
+    else:
+        state.diagnostics.info(
+            DiagnosticCode.E601_REGENERATED,
+            f"the source generator rewrote {len(generated.changes)} part(s) of the program"
+            f"{'' if generated.verified else ' without verifying the result'}",
+            stage=Stage.CODEGEN,
+        )
+    return StageOutcome(name="codegen", value=payload)
 
 
 # ------------------------------------------------------------------- pipeline
@@ -280,6 +336,7 @@ def build_pipeline() -> Pipeline:
     pipeline.register("dataflow", Stage.IR, _stage_dataflow)
     pipeline.register("analysis", Stage.ANALYSIS, _stage_analysis)
     pipeline.register("optimization", Stage.OPTIMIZER, _stage_optimizer)
+    pipeline.register("codegen", Stage.CODEGEN, _stage_codegen)
     return pipeline
 
 

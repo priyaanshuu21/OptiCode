@@ -169,6 +169,7 @@ def test_health_lists_registered_stages(client: TestClient):
         "dataflow",
         "analysis",
         "optimization",
+        "codegen",
     ]
 
 
@@ -489,9 +490,9 @@ def test_lexical_errors_stop_before_semantic(client: TestClient):
 
 def test_timings_include_the_new_stages(client: TestClient):
     body = _compile(client, "int f() { return 0; }")
-    # `optimization` is timed even in the default `analyze` mode, where it declines to run:
-    # it was entered and it returned, and a client watching which stages cost something
-    # should not have to infer that from its absence.
+    # `optimization` and `codegen` are timed even in the default `analyze` mode, where they
+    # decline to run: they were entered and they returned, and a client watching which stages
+    # cost something should not have to infer that from its absence.
     assert set(body["timings"]) == {
         "tokens",
         "ast",
@@ -501,9 +502,12 @@ def test_timings_include_the_new_stages(client: TestClient):
         "dataflow",
         "analysis",
         "optimization",
+        "codegen",
     }
     assert "optimization" not in body["stages_run"]
     assert "optimization" in body["stages_skipped"]
+    assert "codegen" not in body["stages_run"]
+    assert "codegen" in body["stages_skipped"]
 
 
 def test_compile_output_is_deterministic(client: TestClient):

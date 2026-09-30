@@ -35,7 +35,7 @@ The `optimization` stage runs only when `mode` is `optimize`; see §6.1.
 | Data flow | `opticode.analysis` | `FunctionAnalysis` per function: liveness, reaching defs, constants, def-use chains |
 | Dead/unreachable | `opticode.analysis` | `AnalysisReport` of `Finding`s |
 | Optimizer | `opticode.optimizer` | `OptimizationResult` (events, per-pass stats, verification) |
-| Source generation | `opticode.codegen` | `optimized_source`, change map |
+| Source generation | `opticode.codegen` | `CodegenResult` (source, annotated source, change map, self-check) |
 | API | `opticode.api` | FastAPI app, Pydantic schemas |
 
 Arithmetic and formatting rules live in exactly one place, `opticode.semantics`, and are
@@ -698,3 +698,82 @@ observable behaviour.
 The top-level `ir` stays the *unoptimized* program: keeping them in step would be worse
 than useless, since the before/after pair is the teaching material the panel exists to
 show.
+
+## 7. Source generation
+
+`optimized_source` is **not** TAC printed back out. The optimizer reasons in
+three-address code, but the user wrote MiniC, and printing TAC would throw away their
+names, their formatting, and their control flow. Codegen therefore edits a copy of the
+user's AST, which is the only way to produce something a person would recognize as their
+own program.
+
+The stage runs only when `mode` is `optimize`, for the same reason the optimizer does, and
+it has one job: decide which AST nodes the optimization allows it to touch.
+
+| Edit | Evidence required |
+|---|---|
+| `statement_removed` | every instruction the statement lowered to is absent from the optimized program, and the statement is one that cannot affect control flow |
+| `expression_folded` | the optimizer proved the expression's value, in either the constant-pass snapshot or the final program |
+| `branch_resolved` | the optimizer recorded `branch_folded` for that exact branch, and the rewritten arm can stand in for the `if` without changing what binds to a following `else` |
+
+Three rules make this safe rather than merely plausible.
+
+* **Programs, not events, are the evidence.** Removals are derived by asking which
+  instructions no longer exist, not by reading the event log. An event that was recorded but
+  never applied therefore cannot delete a line.
+* **Nothing is decided from a non-literal.** Reading a truth value off an operand that is not
+  a constant resolves every `if` in the program to its then-arm. A branch is only collapsed
+  when the optimizer recorded the fold for it.
+* **The original tree is never mutated.** The response still carries the user's AST and the
+  analysis findings still point into it.
+
+### 7.1 Two things that interact
+
+Removing a declaration and folding the expression that read it are not independent
+decisions. The optimizer proves a store dead precisely *because* every read was propagated to
+a literal, so the declaration usually goes too — but only if codegen also rewrote every one of
+those reads. When one is missed, the declaration has to stay, and staying brings back
+references that need folding, which needs another look at the removals. The planner settles
+this by iterating: build the plan, rewrite the tree speculatively, un-drop the declarations
+whose names the result still uses, repeat. Each round removes at least one declaration.
+
+Fold evidence comes from two sources for the same reason. Constant propagation only runs over
+straight-line code, so a value that depends on which branch a program takes is invisible to it
+— `int c = 0;` incremented behind two branches is not provably 2 until branch folding makes the
+code straight. The constant-only snapshot supplies what the constant passes proved, including
+expressions they collapsed and then deleted; the final program supplies what is only knowable
+after control flow is flattened. Without the second source, the increments were removed from
+the source while the `printf` kept reading the old value.
+
+### 7.2 The self-check
+
+Every generated program is re-compiled from its own text — parse, semantic analysis, lowering
+— and compared against the original by the same interpreter oracle the optimizer uses. If it
+does not behave identically, the generated text is **discarded** and the user's own source is
+returned byte for byte, with `W-CGN-001` explaining why. A wrong rewrite therefore costs a
+missed optimization rather than a broken program, and no change at all costs the user nothing:
+a request with nothing to rewrite returns their exact input, not a reformatting of it.
+
+This is not a formality. It is what caught the two real bugs in this stage, both of which
+produced source that was plausible and wrong: a declaration deleted while a read of it was
+still in the source, and a counter's increments deleted without the `printf` being updated to
+the value they added up to.
+
+### 7.3 Telling the user what happened
+
+Deleting someone's code without saying so is not acceptable, so the change map is part of the
+contract rather than a debug aid. Every entry carries the span it touched, the text before and
+after, the pass that justified it, and the instruction ids behind it, so a claim can be traced
+back to the optimizer's own log. `annotated_source` goes further and keeps every removed
+statement in place as a comment, which answers "what did you take out?" without a side-by-side
+diff. `source` never contains those annotations; it is meant to compile.
+
+### 7.4 Diagnostics
+
+* `I-CGN-001` — what the generator did: how many parts changed, or that it kept the original
+  because there was nothing to show. Informational, never fails a request.
+* `W-CGN-001` — the generated source failed the self-check and was thrown away. The request
+  still succeeds and still has everything it needs; the user just does not get the
+  optimization, and is told why.
+* `E-CGN-001` — the generator itself failed. A compiler bug, contained at the stage boundary
+  like any other, leaving every upstream result intact.

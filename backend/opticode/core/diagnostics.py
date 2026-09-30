@@ -130,6 +130,18 @@ class DiagnosticCode(StrEnum):
     E500_OPTIMIZER_INTERNAL = "E-OPT-001"
     E501_OPTIMIZED = "I-OPT-001"
 
+    # Codegen
+    #
+    # Codegen edits the user's source, so its failures are the same shape as the optimizer's:
+    # compiler bugs, not user mistakes. The interesting one is a self-check failure — the
+    # generated text did not behave like the original, so it is thrown away and the user's own
+    # source is returned. That is reported as a warning rather than an error because the
+    # request still succeeded and still has everything it needs; the user just does not get
+    # the optimization shown back to them, and deserves to know why.
+    E600_CODEGEN_INTERNAL = "E-CGN-001"
+    E601_REGENERATED = "I-CGN-001"
+    E602_REJECTED = "W-CGN-001"
+
 
 @dataclass(frozen=True, slots=True)
 class RelatedInformation:
