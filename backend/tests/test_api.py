@@ -68,11 +68,99 @@ def test_oversize_source_is_rejected(client: TestClient):
     assert body["stages_run"] == []
 
 
-def test_empty_source_is_an_info_not_a_crash(client: TestClient):
-    body = client.post("/api/compile", json={"source": "   \n"}).json()
-    assert body["success"] is True
-    assert [d["code"] for d in body["diagnostics"]] == ["E-INP-002"]
+def test_empty_source_is_a_clean_syntax_error(client: TestClient):
+    """Blank input still lexes and still reports partial results, but a program with no
+    function declarations is a syntax error rather than a silent success.
+
+    No AST is returned here: there is genuinely nothing to build a tree from.
+    """
+    body = compile_body(client, "   \n")
+    assert body["success"] is False
+    errors = [d for d in body["diagnostics"] if d["severity"] == "error"]
+    assert [d["code"] for d in errors] == ["E-SYN-006"]
+    assert errors[0]["stage"] == "parser"
     assert [t["type"] for t in body["tokens"]] == ["eof"]
+    assert body["ast"] is None
+    assert body["stages_run"] == ["tokens", "ast"]
+
+
+def compile_body(client: TestClient, source: str) -> dict:
+    return client.post("/api/compile", json={"source": source}).json()
+
+
+def child(node: dict, role: str, index: int = 0) -> dict:
+    """The `index`-th child of `node` filed under `role`."""
+    matches = [c["node"] for c in node["children"] if c["role"] == role]
+    return matches[index]
+
+
+def test_compile_returns_ast(client: TestClient):
+    body = compile_body(client, VALID)
+    assert body["success"] is True
+    ast = body["ast"]
+    assert ast["kind"] == "Program"
+    assert ast["id"] == "n1"
+
+    function = child(ast, "function")
+    assert function["kind"] == "FunctionDecl"
+    assert function["attrs"] == {"name": "main", "return_type": "int"}
+
+    block = child(function, "body")
+    assert block["kind"] == "Block"
+
+    declaration = child(block, "statement", 0)
+    assert declaration["kind"] == "VarDecl"
+    assert declaration["attrs"] == {"name": "x", "type_name": "int"}
+    assert child(declaration, "init")["kind"] == "BinaryExpr"
+
+    returned = child(block, "statement", 1)
+    assert returned["kind"] == "Return"
+    assert returned["span"]["start_line"] == 3
+
+    ids = all_ids(ast)
+    assert len(ids) == len(set(ids)), "AST ids must be unique"
+    assert "" not in ids, "every node must carry an id"
+
+
+def all_ids(node: dict) -> list[str]:
+    found = [node["id"]]
+    for entry in node["children"]:
+        found.extend(all_ids(entry["node"]))
+    return found
+
+
+def test_ast_spans_point_at_the_real_source(client: TestClient):
+    lines = VALID.splitlines()
+    for token in compile_body(client, VALID)["tokens"]:
+        if token["type"] == "eof":
+            continue
+        line = lines[token["span"]["start_line"] - 1]
+        start = token["span"]["start_col"] - 1
+        assert line[start : start + len(token["lexeme"])] == token["lexeme"]
+
+
+def test_ast_omitted_when_parser_is_skipped(client: TestClient):
+    """A lexer error stops the pipeline, so no AST is produced."""
+    body = compile_body(client, "int main() {\n    int x = 1 $ 2;\n}\n")
+    assert body["success"] is False
+    assert body["ast"] is None
+    assert body["tokens"] is not None
+    assert body["stages_run"] == ["tokens"]
+
+
+def test_parser_errors_still_return_the_partial_ast(client: TestClient):
+    """A syntax error is recoverable: the tree built so far is still returned."""
+    body = compile_body(client, "int main() {\n    int x = ;\n    return 0;\n}\n")
+    assert body["success"] is False
+    assert body["tokens"] is not None
+    assert body["ast"] is not None
+    errors = [d for d in body["diagnostics"] if d["severity"] == "error"]
+    assert errors and all(d["stage"] == "parser" for d in errors)
+    assert all(d["span"]["start_line"] >= 1 for d in errors)
+
+
+def test_health_lists_parser_stage(client: TestClient):
+    assert client.get("/api/health").json()["stages"] == ["tokens", "ast"]
 
 
 def test_internal_errors_become_structured_diagnostics(monkeypatch):

@@ -198,6 +198,33 @@ def test_bad_escape_is_reported_but_recovered():
     assert tokens[0].value == "q"
 
 
+def test_percent_is_not_an_escape_sequence():
+    r"""`%` needs no escaping inside a format string, and `\%` is not valid."""
+    tokens, found = scan(r'"100%"')
+    assert not found
+    assert tokens[0].value == "100%"
+
+    tokens, found = scan(r'"100%%"')
+    assert not found
+    assert tokens[0].value == "100%%", "a doubled percent is literal, not an escape"
+
+    tokens, found = scan(r'"50\%"')
+    assert [d.code.value for d in found] == ["E-LEX-003"]
+    assert tokens[0].value == "50%"
+
+
+def test_unsupported_c_characters_get_targeted_messages():
+    """C-valid but MiniC-invalid characters say what to do instead."""
+    for char in "[]^?~`":
+        found = errors(f"int a = {char} 1;")
+        assert [d.code.value for d in found] == ["E-LEX-005"], char
+        assert found[0].message != f"unexpected character {char!r} in source"
+
+    assert "no arrays or pointers" in errors("int a = [ 1;")[0].message
+    assert "conditional operator" in errors("int a = ? 1;")[0].message
+    assert "bitwise not" in errors("int a = ~ 1;")[0].message
+
+
 # ----------------------------------------------------------------- comments
 
 

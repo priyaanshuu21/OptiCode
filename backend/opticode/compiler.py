@@ -15,6 +15,8 @@ from .core.pipeline import MAX_SOURCE_SIZE, CompileMode, Pipeline, PipelineState
 from .core.spans import SourceSpan
 from .lexer.lexer import Lexer
 from .lexer.tokens import Token
+from .parser.parser import Parser
+from .parser.serialize import serialize_program
 
 __all__ = ["CompileResult", "build_pipeline", "compile_source", "MAX_SOURCE_SIZE"]
 
@@ -67,12 +69,20 @@ def _stage_lex(state: PipelineState) -> StageOutcome:
     return StageOutcome(name="tokens", value=tokens)
 
 
+def _stage_parse(state: PipelineState) -> StageOutcome:
+    tokens = state.get("tokens") or []
+    program, diagnostics = Parser(tokens).parse()
+    state.diagnostics.extend(diagnostics)
+    return StageOutcome(name="ast", value=program)
+
+
 # ------------------------------------------------------------------- pipeline
 
 
 def build_pipeline() -> Pipeline:
     pipeline = Pipeline()
     pipeline.register("tokens", Stage.LEXER, _stage_lex)
+    pipeline.register("ast", Stage.PARSER, _stage_parse)
     return pipeline
 
 
@@ -117,12 +127,13 @@ def compile_source(
 def _to_result(state: PipelineState) -> CompileResult:
     bag = DiagnosticBag(state.diagnostics.sorted())
     success = not bag.has_errors()
+    program = state.get("ast")
     return CompileResult(
         success=success,
         mode=state.mode,
         diagnostics=bag.sorted(),
         tokens=state.get("tokens"),
-        ast=state.get("ast"),
+        ast=serialize_program(program) if program is not None else None,
         semantic=state.get("semantic"),
         ir=state.get("ir"),
         cfg=state.get("cfg"),

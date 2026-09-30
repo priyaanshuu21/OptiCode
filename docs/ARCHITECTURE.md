@@ -44,7 +44,7 @@ backend/opticode/
 ├── compiler.py      # stage registration + compile_source() facade
 ├── core/            # SourceSpan, Diagnostic, Pipeline (no compiler knowledge)
 ├── lexer/
-├── parser/          # Task 2
+├── parser/          # AST, recursive-descent parser, serializer, unparser
 ├── semantic/        # Task 3
 ├── semantics/       # arith: single source of arithmetic truth
 ├── ir/              # TAC model, lowering, printer, interpreter
@@ -123,15 +123,72 @@ Diagnostic(severity, code, message, span, stage, related[])
   "diagnostics": [],
   "tokens": [ { "type": "int_kw", "category": "keyword", "lexeme": "int",
                 "value": null, "span": { ... } } ],
-  "timings": { "tokens": 0.42 },
-  "stages_run": ["tokens"],
+  "ast": { "id": "n1", "kind": "Program", "span": { ... },
+           "semantic_type": null, "attrs": {},
+           "children": [ { "role": "function", "node": { ... } } ] },
+  "timings": { "tokens": 0.42, "ast": 0.31 },
+  "stages_run": ["tokens", "ast"],
   "stages_skipped": []
 }
 ```
 
 Each stage field (`tokens`, `ast`, `semantic`, `ir`, `cfg`, `dataflow`, `analysis`,
 `optimization`, `codegen`) is present **only if that stage ran**. A missing field means
-the stage was skipped, and `stages_skipped` says why.
+the stage was skipped, and `stages_skipped` says why. `ast` is `null` when the parser
+recovered from errors but built no tree at all; a partially parsed program still gets
+its partial tree.
+
+### 4.5 AST
+
+AST nodes are frozen, slotted dataclasses that all inherit from `Node`:
+
+```python
+Node(id, span, semantic_type)
+```
+
+The node's `kind` is its class name, taken by the serializer rather than stored. `id` is
+the deterministic node id, `span` is the `SourceSpan` the node covers, and
+`semantic_type` is filled in by Task 3 (`None` until then).
+
+| Node | Key attributes | Children |
+|---|---|---|
+| `Program` | — | `function` |
+| `FunctionDecl` | `name`, `return_type` | `param`, `body` |
+| `Param` | `name`, `type_name` | — |
+| `Block` | — | `statement` |
+| `VarDecl` | `name`, `type_name` | `init` |
+| `Assign` | `target` (a plain name), `op`, `sugar` | `value` |
+| `If` | — | `condition`, `then`, `else` |
+| `While` | — | `condition`, `body` |
+| `For` | — | `init`, `condition`, `update`, `body` |
+| `Return` | — | `value` |
+| `Break` / `Continue` | — | — |
+| `ExprStmt` | — | `expr` |
+| `Printf` | `format`, `format_span` | `argument` |
+| `Scanf` | `format`, `format_span` | — (targets are name strings) |
+| `BinaryExpr` | `op` | `left`, `right` |
+| `UnaryExpr` | `op` | `operand` |
+| `IntLiteral` / `FloatLiteral` / `StringLiteral` | `value`, `lexeme` | — |
+| `Identifier` | `name` | — |
+| `CallExpr` | `callee` (a plain name) | `argument` |
+
+Design points that later tasks depend on:
+
+- **A single child table.** `_CHILD_FIELDS` in `opticode.parser.ast` maps each node type
+  to `(role, field)` pairs. Serialization, traversal, id assignment, and node cloning all
+  read that one table, so they cannot drift apart.
+- **Ids are assigned once, in pre-order.** `assign_ids()` numbers the tree `n1`, `n2`, …
+  starting at the `Program`. `walk()` yields nodes in that same order, so id order and
+  traversal order agree, and a later pass can rebuild a node while keeping its id.
+- **Optional children are omitted, not nulled.** A `while` with no condition child
+  serializes with no `condition` entry rather than an explicit `null`, which keeps the
+  shape stable for the frontend.
+- **Desugared nodes are first-class.** `a += e` and `a++` become ordinary `Assign` and
+  `BinaryExpr` nodes carrying `sugar`, so later passes handle one form and the unparser
+  can still reproduce the original text.
+- **The unparser is the inverse of the parser.** `parse(unparse(tree))` has the same
+  shape as `tree`, modulo source layout. Blocks stay blocks, so braces are never invented
+  or dropped.
 
 ## 5. Error strategy
 

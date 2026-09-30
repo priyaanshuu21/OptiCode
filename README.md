@@ -28,7 +28,7 @@ cd backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
-uvicorn opticode.api.app:app --reload --port 8000
+uvicorn opticode.api.main:app --reload --port 8000
 ```
 
 Then open <http://127.0.0.1:8000/docs> for the interactive API documentation.

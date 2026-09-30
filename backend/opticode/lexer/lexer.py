@@ -55,6 +55,18 @@ _ONE_CHAR: dict[str, TokenType] = {
 
 _STRING_ESCAPES = {"n": "\n", "t": "\t", '"': '"', "\\": "\\"}
 
+#: Characters that are valid C but not MiniC. They get a targeted message instead of
+#: the generic "unexpected character", so array subscripts are easy to diagnose.
+_UNSUPPORTED_CHARS = {
+    "[": "array subscripts are not supported in MiniC; there are no arrays or pointers",
+    "]": "array subscripts are not supported in MiniC; there are no arrays or pointers",
+    "^": "'^' is not an operator in C or MiniC",
+    "?": "'?:' (the conditional operator) is not supported in MiniC; use if/else",
+    "~": "'~' (bitwise not) is not supported in MiniC",
+    "`": "'`' (backtick) is not part of MiniC",
+    "\\": "a stray backslash; '\\n' inside a string is an escape, not a line continuation",
+}
+
 
 class Lexer:
     """Scans MiniC source text into a token list plus diagnostics."""
@@ -198,10 +210,19 @@ class Lexer:
             return
 
         self._advance()
+        span = SourceSpan(line, col, self.line, self.col)
+        if char in _UNSUPPORTED_CHARS:
+            self.diagnostics.error(
+                DiagnosticCode.E104_UNEXPECTED_CHARACTER,
+                _UNSUPPORTED_CHARS[char],
+                span=span,
+                stage=Stage.LEXER,
+            )
+            return
         self.diagnostics.error(
             DiagnosticCode.E104_UNEXPECTED_CHARACTER,
             f"unexpected character {char!r} in source",
-            span=SourceSpan(line, col, self.line, self.col),
+            span=span,
             stage=Stage.LEXER,
         )
 
