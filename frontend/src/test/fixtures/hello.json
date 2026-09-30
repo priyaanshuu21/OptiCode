@@ -1,0 +1,674 @@
+{
+  "mode": "analyze",
+  "response": {
+    "analysis": {
+      "dead_instruction_ids": [],
+      "finding_count": 0,
+      "findings": [],
+      "summary": {},
+      "unreachable_blocks": []
+    },
+    "ast": {
+      "attrs": {},
+      "children": [
+        {
+          "node": {
+            "attrs": {
+              "name": "main",
+              "return_type": "int"
+            },
+            "children": [
+              {
+                "node": {
+                  "attrs": {},
+                  "children": [
+                    {
+                      "node": {
+                        "attrs": {
+                          "format": "Hello, world!\n"
+                        },
+                        "children": [],
+                        "id": "n4",
+                        "kind": "Printf",
+                        "semantic_type": null,
+                        "span": {
+                          "end_col": 31,
+                          "end_line": 4,
+                          "start_col": 5,
+                          "start_line": 4
+                        }
+                      },
+                      "role": "statement"
+                    },
+                    {
+                      "node": {
+                        "attrs": {},
+                        "children": [
+                          {
+                            "node": {
+                              "attrs": {
+                                "lexeme": "0",
+                                "value": 0
+                              },
+                              "children": [],
+                              "id": "n6",
+                              "kind": "IntLiteral",
+                              "semantic_type": null,
+                              "span": {
+                                "end_col": 13,
+                                "end_line": 5,
+                                "start_col": 12,
+                                "start_line": 5
+                              }
+                            },
+                            "role": "value"
+                          }
+                        ],
+                        "id": "n5",
+                        "kind": "Return",
+                        "semantic_type": null,
+                        "span": {
+                          "end_col": 14,
+                          "end_line": 5,
+                          "start_col": 5,
+                          "start_line": 5
+                        }
+                      },
+                      "role": "statement"
+                    }
+                  ],
+                  "id": "n3",
+                  "kind": "Block",
+                  "semantic_type": null,
+                  "span": {
+                    "end_col": 2,
+                    "end_line": 6,
+                    "start_col": 12,
+                    "start_line": 3
+                  }
+                },
+                "role": "body"
+              }
+            ],
+            "id": "n2",
+            "kind": "FunctionDecl",
+            "semantic_type": null,
+            "span": {
+              "end_col": 2,
+              "end_line": 6,
+              "start_col": 1,
+              "start_line": 3
+            }
+          },
+          "role": "function"
+        }
+      ],
+      "id": "n1",
+      "kind": "Program",
+      "semantic_type": null,
+      "span": {
+        "end_col": 2,
+        "end_line": 6,
+        "start_col": 1,
+        "start_line": 1
+      }
+    },
+    "cfg": {
+      "main": {
+        "back_edges": [],
+        "block_count": 2,
+        "blocks": [
+          {
+            "id": "B1",
+            "instruction_ids": [
+              "i1",
+              "i2"
+            ],
+            "instructions": [
+              {
+                "ast_node_id": "n4",
+                "dest": null,
+                "format": "Hello, world!\n",
+                "id": "i1",
+                "opcode": "print",
+                "operands": [],
+                "span": {
+                  "end_col": 31,
+                  "end_line": 4,
+                  "start_col": 5,
+                  "start_line": 4
+                },
+                "synthetic": false,
+                "type": null
+              },
+              {
+                "ast_node_id": "n5",
+                "dest": null,
+                "id": "i2",
+                "opcode": "return",
+                "operand_origin_ids": [
+                  "n6"
+                ],
+                "operands": [
+                  {
+                    "kind": "const",
+                    "type": "int",
+                    "value": 0
+                  }
+                ],
+                "span": {
+                  "end_col": 14,
+                  "end_line": 5,
+                  "start_col": 5,
+                  "start_line": 5
+                },
+                "synthetic": false,
+                "type": "int"
+              }
+            ],
+            "labels": [],
+            "leader_reason": "function entry",
+            "predecessors": [],
+            "reachable": true,
+            "span": {
+              "end_col": 14,
+              "end_line": 5,
+              "start_col": 5,
+              "start_line": 4
+            },
+            "successors": [
+              "EXIT"
+            ]
+          },
+          {
+            "id": "B2",
+            "instruction_ids": [
+              "i3"
+            ],
+            "instructions": [
+              {
+                "ast_node_id": "",
+                "dest": null,
+                "id": "i3",
+                "opcode": "return",
+                "operand_origin_ids": [
+                  "n2"
+                ],
+                "operands": [
+                  {
+                    "kind": "const",
+                    "type": "int",
+                    "value": 0
+                  }
+                ],
+                "span": {
+                  "end_col": 2,
+                  "end_line": 6,
+                  "start_col": 1,
+                  "start_line": 3
+                },
+                "synthetic": true,
+                "type": "int"
+              }
+            ],
+            "labels": [],
+            "leader_reason": "follows return",
+            "predecessors": [],
+            "reachable": false,
+            "span": {
+              "end_col": 2,
+              "end_line": 6,
+              "start_col": 1,
+              "start_line": 3
+            },
+            "successors": [
+              "EXIT"
+            ]
+          }
+        ],
+        "edge_count": 2,
+        "edges": [
+          {
+            "dst": "EXIT",
+            "is_back_edge": false,
+            "kind": "return",
+            "src": "B1"
+          },
+          {
+            "dst": "EXIT",
+            "is_back_edge": false,
+            "kind": "return",
+            "src": "B2"
+          }
+        ],
+        "entry": "B1",
+        "exit": "EXIT",
+        "function": "main",
+        "has_loops": false,
+        "return_type": "int",
+        "rpo": [
+          "B1"
+        ]
+      }
+    },
+    "codegen": null,
+    "dataflow": {
+      "main": {
+        "branches": [],
+        "chains": {
+          "defs_of": {},
+          "uses_of": {}
+        },
+        "exit_values": {},
+        "instructions": {
+          "i1": {
+            "constants": {
+              "operands": [],
+              "result": null
+            },
+            "liveness": {
+              "dest_live": false,
+              "live_in": [],
+              "live_out": []
+            },
+            "reaching": {
+              "defines": null,
+              "reaching": []
+            }
+          },
+          "i2": {
+            "constants": {
+              "operands": [
+                {
+                  "kind": "const",
+                  "type": "int",
+                  "value": 0
+                }
+              ],
+              "result": null
+            },
+            "liveness": {
+              "dest_live": false,
+              "live_in": [],
+              "live_out": []
+            },
+            "reaching": {
+              "defines": null,
+              "reaching": []
+            }
+          }
+        },
+        "iterations": {
+          "constant_propagation": 1,
+          "liveness": 1,
+          "reaching": 1
+        },
+        "live_in": {
+          "B1": []
+        },
+        "live_out": {
+          "B1": []
+        },
+        "name": "main",
+        "reaching_in": {
+          "B1": []
+        },
+        "reaching_out": {
+          "B1": []
+        },
+        "uninitialized_reads": []
+      }
+    },
+    "diagnostics": [],
+    "ir": {
+      "function_count": 1,
+      "functions": [
+        {
+          "declared_locals": [],
+          "instruction_count": 3,
+          "instructions": [
+            {
+              "ast_node_id": "n4",
+              "defs": [],
+              "dest": null,
+              "format": "Hello, world!\n",
+              "has_side_effects": true,
+              "id": "i1",
+              "may_trap": false,
+              "opcode": "print",
+              "operands": [],
+              "span": {
+                "end_col": 31,
+                "end_line": 4,
+                "start_col": 5,
+                "start_line": 4
+              },
+              "synthetic": false,
+              "type": null,
+              "uses": []
+            },
+            {
+              "ast_node_id": "n5",
+              "defs": [],
+              "dest": null,
+              "has_side_effects": true,
+              "id": "i2",
+              "may_trap": false,
+              "opcode": "return",
+              "operand_origin_ids": [
+                "n6"
+              ],
+              "operands": [
+                {
+                  "kind": "const",
+                  "type": "int",
+                  "value": 0
+                }
+              ],
+              "span": {
+                "end_col": 14,
+                "end_line": 5,
+                "start_col": 5,
+                "start_line": 5
+              },
+              "synthetic": false,
+              "type": "int",
+              "uses": []
+            },
+            {
+              "ast_node_id": "",
+              "defs": [],
+              "dest": null,
+              "has_side_effects": true,
+              "id": "i3",
+              "may_trap": false,
+              "opcode": "return",
+              "operand_origin_ids": [
+                "n2"
+              ],
+              "operands": [
+                {
+                  "kind": "const",
+                  "type": "int",
+                  "value": 0
+                }
+              ],
+              "span": {
+                "end_col": 2,
+                "end_line": 6,
+                "start_col": 1,
+                "start_line": 3
+              },
+              "synthetic": true,
+              "type": "int",
+              "uses": []
+            }
+          ],
+          "labels": [],
+          "name": "main",
+          "node_id": "n2",
+          "params": [],
+          "return_type": "int",
+          "span": {
+            "end_col": 2,
+            "end_line": 6,
+            "start_col": 1,
+            "start_line": 3
+          },
+          "temp_count": 0
+        }
+      ],
+      "instruction_count": 3,
+      "text": "# main() -> int\n#   params: \n    i1: print \"Hello, world!\\n\"\n    i2: return 0\n    i3: return 0  [synthetic]",
+      "types": [
+        "int",
+        "float",
+        "void",
+        "string"
+      ]
+    },
+    "mode": "analyze",
+    "optimization": null,
+    "semantic": {
+      "functions": [
+        {
+          "ir_name": "main",
+          "name": "main",
+          "node_id": "n2",
+          "params": [],
+          "return_type": "int",
+          "span": {
+            "end_col": 2,
+            "end_line": 6,
+            "start_col": 1,
+            "start_line": 3
+          }
+        }
+      ],
+      "scopes": [
+        {
+          "depth": 0,
+          "id": 1,
+          "kind": "function",
+          "parent": null,
+          "symbols": []
+        }
+      ],
+      "summary": {
+        "function_count": 1,
+        "scope_count": 1,
+        "symbol_count": 0,
+        "unused_symbols": []
+      },
+      "symbols": []
+    },
+    "stages_run": [
+      "tokens",
+      "ast",
+      "semantic",
+      "ir",
+      "cfg",
+      "dataflow",
+      "analysis"
+    ],
+    "stages_skipped": [
+      "optimization",
+      "codegen"
+    ],
+    "success": true,
+    "timings": {
+      "analysis": 0.0,
+      "ast": 0.0,
+      "cfg": 0.0,
+      "codegen": 0.0,
+      "dataflow": 0.0,
+      "ir": 0.0,
+      "optimization": 0.0,
+      "semantic": 0.0,
+      "tokens": 0.0
+    },
+    "tokens": [
+      {
+        "category": "keyword",
+        "lexeme": "int",
+        "span": {
+          "end_col": 4,
+          "end_line": 3,
+          "start_col": 1,
+          "start_line": 3
+        },
+        "type": "int_kw",
+        "value": "int"
+      },
+      {
+        "category": "identifier",
+        "lexeme": "main",
+        "span": {
+          "end_col": 9,
+          "end_line": 3,
+          "start_col": 5,
+          "start_line": 3
+        },
+        "type": "ident",
+        "value": "main"
+      },
+      {
+        "category": "punctuation",
+        "lexeme": "(",
+        "span": {
+          "end_col": 10,
+          "end_line": 3,
+          "start_col": 9,
+          "start_line": 3
+        },
+        "type": "(",
+        "value": null
+      },
+      {
+        "category": "punctuation",
+        "lexeme": ")",
+        "span": {
+          "end_col": 11,
+          "end_line": 3,
+          "start_col": 10,
+          "start_line": 3
+        },
+        "type": ")",
+        "value": null
+      },
+      {
+        "category": "punctuation",
+        "lexeme": "{",
+        "span": {
+          "end_col": 13,
+          "end_line": 3,
+          "start_col": 12,
+          "start_line": 3
+        },
+        "type": "{",
+        "value": null
+      },
+      {
+        "category": "keyword",
+        "lexeme": "printf",
+        "span": {
+          "end_col": 11,
+          "end_line": 4,
+          "start_col": 5,
+          "start_line": 4
+        },
+        "type": "printf_kw",
+        "value": "printf"
+      },
+      {
+        "category": "punctuation",
+        "lexeme": "(",
+        "span": {
+          "end_col": 12,
+          "end_line": 4,
+          "start_col": 11,
+          "start_line": 4
+        },
+        "type": "(",
+        "value": null
+      },
+      {
+        "category": "literal",
+        "lexeme": "\"Hello, world!\\n\"",
+        "span": {
+          "end_col": 29,
+          "end_line": 4,
+          "start_col": 12,
+          "start_line": 4
+        },
+        "type": "string",
+        "value": "Hello, world!\n"
+      },
+      {
+        "category": "punctuation",
+        "lexeme": ")",
+        "span": {
+          "end_col": 30,
+          "end_line": 4,
+          "start_col": 29,
+          "start_line": 4
+        },
+        "type": ")",
+        "value": null
+      },
+      {
+        "category": "punctuation",
+        "lexeme": ";",
+        "span": {
+          "end_col": 31,
+          "end_line": 4,
+          "start_col": 30,
+          "start_line": 4
+        },
+        "type": ";",
+        "value": null
+      },
+      {
+        "category": "keyword",
+        "lexeme": "return",
+        "span": {
+          "end_col": 11,
+          "end_line": 5,
+          "start_col": 5,
+          "start_line": 5
+        },
+        "type": "return_kw",
+        "value": "return"
+      },
+      {
+        "category": "literal",
+        "lexeme": "0",
+        "span": {
+          "end_col": 13,
+          "end_line": 5,
+          "start_col": 12,
+          "start_line": 5
+        },
+        "type": "int",
+        "value": 0
+      },
+      {
+        "category": "punctuation",
+        "lexeme": ";",
+        "span": {
+          "end_col": 14,
+          "end_line": 5,
+          "start_col": 13,
+          "start_line": 5
+        },
+        "type": ";",
+        "value": null
+      },
+      {
+        "category": "punctuation",
+        "lexeme": "}",
+        "span": {
+          "end_col": 2,
+          "end_line": 6,
+          "start_col": 1,
+          "start_line": 6
+        },
+        "type": "}",
+        "value": null
+      },
+      {
+        "category": "eof",
+        "lexeme": "",
+        "span": {
+          "end_col": 2,
+          "end_line": 6,
+          "start_col": 2,
+          "start_line": 6
+        },
+        "type": "eof",
+        "value": null
+      }
+    ]
+  },
+  "source": "/* The smallest complete program: print a greeting and return a value. */\n\nint main() {\n    printf(\"Hello, world!\\n\");\n    return 0;\n}"
+}

@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-surface-sunken font-sans text-slate-200 antialiased;
+  }
+
+  /* The stage views set their own scrolling containers, so the page itself must not scroll. */
+  body {
+    overflow: hidden;
+  }
+}
+
+@layer components {
+  /* The highlight left behind when a stage view selects a source range. */
+  .selection-line {
+    @apply bg-sky-500/10;
+  }
+
+  .selection-marker {
+    @apply border-l-2 border-sky-400;
+  }
+
+  /* React Flow edge labels sit on the graph background; keep them legible without a box. */
+  .react-flow__edge-textbg {
+    fill: #121a30;
+  }
+
+  .edge-loop {
+    filter: drop-shadow(0 0 4px rgb(245 158 11 / 40%));
+  }
+
+  /* Monaco's scrollbars are wider than the app's own; bring them in line. */
+  .monaco-editor .scrollbar.vertical > div > div {
+    width: 10px !important;
+  }
+}

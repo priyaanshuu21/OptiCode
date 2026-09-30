@@ -1,0 +1,199 @@
+import { useEffect, type JSX } from 'react'
+
+import { STAGES, useCompilerStore, type StageId } from '@/store/compiler'
+import { SourceEditor } from '@/components/SourceEditor'
+import { TokensView } from '@/views/TokensView'
+import { AstView } from '@/views/AstView'
+import { TacView } from '@/views/TacView'
+import { BlocksView } from '@/views/BlocksView'
+import { DiagnosticsView } from '@/views/DiagnosticsView'
+
+/**
+ * The application shell: source on the left, one stage view on the right.
+ *
+ * The stage list is derived from `STAGES` rather than hard-coded twice, so adding a stage is a
+ * one-line change and cannot leave the tabs and the renderer disagreeing about what exists.
+ * The count on each tab is the number of diagnostics for that stage, which is what makes a tab
+ * worth clicking.
+ */
+
+const VIEWS: Record<StageId, () => JSX.Element> = {
+  tokens: TokensView,
+  ast: AstView,
+  tac: TacView,
+  blocks: BlocksView,
+  diagnostics: DiagnosticsView,
+}
+
+function StageTabs(): JSX.Element {
+  const active = useCompilerStore((state) => state.activeStage)
+  const setActive = useCompilerStore((state) => state.setActiveStage)
+  const response = useCompilerStore((state) => state.response)
+
+  return (
+    <nav aria-label="Compiler stages" className="flex shrink-0 items-center gap-1 border-b border-edge px-2">
+      {STAGES.map((stage) => {
+        const isActive = stage.id === active
+        const skipped = response?.stages_skipped.includes(stage.stage) ?? false
+        const ran = response?.stages_run.includes(stage.stage) ?? false
+        const count = (response?.diagnostics ?? []).filter((d) => d.stage === stage.stage).length
+        return (
+          <button
+            key={stage.id}
+            type="button"
+            onClick={() => setActive(stage.id)}
+            aria-current={isActive ? 'page' : undefined}
+            title={stage.blurb}
+            className={`relative px-3 py-2 text-xs transition-colors ${
+              isActive ? 'text-slate-100' : 'text-slate-500 hover:text-slate-300'
+            }`}
+          >
+            <span className="inline-flex items-center gap-1.5">
+              {stage.label}
+              {count > 0 ? (
+                <span className="rounded-full bg-severity-error/20 px-1.5 font-mono text-2xs text-severity-error">
+                  {count}
+                </span>
+              ) : null}
+            </span>
+            {/* Three states worth distinguishing: this tab is open, its stage ran, or it did not. */}
+            {!ran && response ? (
+              <span className="absolute inset-x-2 bottom-1 h-px bg-edge-strong" title="stage skipped" />
+            ) : null}
+            {skipped ? (
+              <span className="absolute right-1 top-1.5 h-1 w-1 rounded-full bg-slate-600" aria-label="stage skipped" />
+            ) : null}
+            {isActive ? (
+              <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-stage-ast" />
+            ) : null}
+          </button>
+        )
+      })}
+    </nav>
+  )
+}
+
+function Toolbar(): JSX.Element {
+  const mode = useCompilerStore((state) => state.mode)
+  const setMode = useCompilerStore((state) => state.setMode)
+  const run = useCompilerStore((state) => state.run)
+  const status = useCompilerStore((state) => state.status)
+  const error = useCompilerStore((state) => state.error)
+  const health = useCompilerStore((state) => state.health)
+  const selection = useCompilerStore((state) => state.selection)
+
+  return (
+    <header className="flex shrink-0 items-center gap-4 border-b border-edge bg-surface-raised px-4 py-2">
+      <div className="flex items-baseline gap-2">
+        <h1 className="font-mono text-sm font-semibold tracking-tight text-slate-100">OptiCode</h1>
+        <span className="font-mono text-2xs text-slate-500">compiler stages</span>
+      </div>
+
+      <div className="flex rounded border border-edge" role="group" aria-label="Compiler mode">
+        {(['analyze', 'optimize'] as const).map((option) => (
+          <button
+            key={option}
+            type="button"
+            onClick={() => setMode(option)}
+            aria-pressed={mode === option}
+            className={`px-2.5 py-1 font-mono text-2xs capitalize transition-colors ${
+              mode === option
+                ? 'bg-surface-overlay text-slate-100'
+                : 'text-slate-500 hover:text-slate-300'
+            }`}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => void run()}
+        className="rounded border border-edge-strong px-3 py-1 font-mono text-2xs text-slate-200 hover:bg-surface-overlay"
+      >
+        Compile
+      </button>
+
+      <div className="min-w-0 flex-1">
+        {error ? (
+          <p className="truncate font-mono text-2xs text-severity-error" role="alert">
+            {error}
+          </p>
+        ) : (
+          <p className="truncate font-mono text-2xs text-slate-500">
+            {selection ? `selected from ${selection.origin} — L${selection.line}` : ''}
+          </p>
+        )}
+      </div>
+
+      <span className="flex shrink-0 items-center gap-1.5 font-mono text-2xs text-slate-500">
+        <span
+          className={`h-1.5 w-1.5 rounded-full ${
+            status === 'error'
+              ? 'bg-severity-error'
+              : status === 'compiling'
+                ? 'animate-pulse bg-sky-400'
+                : status === 'ready'
+                  ? 'bg-severity-success'
+                  : 'bg-slate-600'
+          }`}
+        />
+        {status === 'compiling' ? 'compiling' : status}
+      </span>
+
+      {health ? (
+        <span className="shrink-0 font-mono text-2xs text-slate-500" title={health.stages.join(' → ')}>
+          v{health.version}
+        </span>
+      ) : null}
+    </header>
+  )
+}
+
+export function App(): JSX.Element {
+  const active = useCompilerStore((state) => state.activeStage)
+  const source = useCompilerStore((state) => state.source)
+  const checkHealth = useCompilerStore((state) => state.checkHealth)
+  const run = useCompilerStore((state) => state.run)
+  const View = VIEWS[active]
+
+  useEffect(() => {
+    void checkHealth()
+  }, [checkHealth])
+
+  // Compile once on mount so the app opens with something to look at, without waiting for a
+  // keystroke. The debounce in the store does not apply here, and should not.
+  useEffect(() => {
+    void run()
+    // Intentionally mount-only: `run` is stable, and re-running on every source change would
+    // defeat the debounce that `setSource` sets up.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  return (
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-surface-sunken text-slate-200">
+      <Toolbar />
+      <main className="flex min-h-0 flex-1">
+        <section
+          className="flex min-h-0 w-[42%] min-w-72 flex-col border-r border-edge"
+          aria-label="Source"
+        >
+          <div className="flex shrink-0 items-center justify-between border-b border-edge px-3 py-2">
+            <h2 className="font-mono text-2xs uppercase tracking-wider text-slate-500">Source</h2>
+            <span className="font-mono text-2xs text-slate-600">
+              {source.split('\n').length} lines
+            </span>
+          </div>
+          <div className="min-h-0 flex-1">
+            <SourceEditor />
+          </div>
+        </section>
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col" aria-label="Stage view">
+          <StageTabs />
+          <View />
+        </section>
+      </main>
+    </div>
+  )
+}

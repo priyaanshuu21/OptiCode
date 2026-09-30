@@ -1,0 +1,595 @@
+{
+  "mode": "analyze",
+  "response": {
+    "analysis": null,
+    "ast": {
+      "attrs": {},
+      "children": [
+        {
+          "node": {
+            "attrs": {
+              "name": "main",
+              "return_type": "int"
+            },
+            "children": [
+              {
+                "node": {
+                  "attrs": {},
+                  "children": [
+                    {
+                      "node": {
+                        "attrs": {
+                          "name": "total",
+                          "type_name": "int"
+                        },
+                        "children": [
+                          {
+                            "node": {
+                              "attrs": {
+                                "callee": "compute"
+                              },
+                              "children": [
+                                {
+                                  "node": {
+                                    "attrs": {
+                                      "name": "unknown_name"
+                                    },
+                                    "children": [],
+                                    "id": "n6",
+                                    "kind": "Identifier",
+                                    "semantic_type": null,
+                                    "span": {
+                                      "end_col": 37,
+                                      "end_line": 2,
+                                      "start_col": 25,
+                                      "start_line": 2
+                                    }
+                                  },
+                                  "role": "argument"
+                                }
+                              ],
+                              "id": "n5",
+                              "kind": "CallExpr",
+                              "semantic_type": null,
+                              "span": {
+                                "end_col": 38,
+                                "end_line": 2,
+                                "start_col": 17,
+                                "start_line": 2
+                              }
+                            },
+                            "role": "init"
+                          }
+                        ],
+                        "id": "n4",
+                        "kind": "VarDecl",
+                        "semantic_type": null,
+                        "span": {
+                          "end_col": 38,
+                          "end_line": 2,
+                          "start_col": 5,
+                          "start_line": 2
+                        }
+                      },
+                      "role": "statement"
+                    },
+                    {
+                      "node": {
+                        "attrs": {
+                          "format": "%d\n"
+                        },
+                        "children": [
+                          {
+                            "node": {
+                              "attrs": {
+                                "name": "total"
+                              },
+                              "children": [],
+                              "id": "n8",
+                              "kind": "Identifier",
+                              "semantic_type": null,
+                              "span": {
+                                "end_col": 25,
+                                "end_line": 3,
+                                "start_col": 20,
+                                "start_line": 3
+                              }
+                            },
+                            "role": "argument"
+                          }
+                        ],
+                        "id": "n7",
+                        "kind": "Printf",
+                        "semantic_type": null,
+                        "span": {
+                          "end_col": 27,
+                          "end_line": 3,
+                          "start_col": 5,
+                          "start_line": 3
+                        }
+                      },
+                      "role": "statement"
+                    },
+                    {
+                      "node": {
+                        "attrs": {},
+                        "children": [
+                          {
+                            "node": {
+                              "attrs": {
+                                "lexeme": "0",
+                                "value": 0
+                              },
+                              "children": [],
+                              "id": "n10",
+                              "kind": "IntLiteral",
+                              "semantic_type": null,
+                              "span": {
+                                "end_col": 13,
+                                "end_line": 4,
+                                "start_col": 12,
+                                "start_line": 4
+                              }
+                            },
+                            "role": "value"
+                          }
+                        ],
+                        "id": "n9",
+                        "kind": "Return",
+                        "semantic_type": null,
+                        "span": {
+                          "end_col": 14,
+                          "end_line": 4,
+                          "start_col": 5,
+                          "start_line": 4
+                        }
+                      },
+                      "role": "statement"
+                    }
+                  ],
+                  "id": "n3",
+                  "kind": "Block",
+                  "semantic_type": null,
+                  "span": {
+                    "end_col": 2,
+                    "end_line": 5,
+                    "start_col": 12,
+                    "start_line": 1
+                  }
+                },
+                "role": "body"
+              }
+            ],
+            "id": "n2",
+            "kind": "FunctionDecl",
+            "semantic_type": null,
+            "span": {
+              "end_col": 2,
+              "end_line": 5,
+              "start_col": 1,
+              "start_line": 1
+            }
+          },
+          "role": "function"
+        }
+      ],
+      "id": "n1",
+      "kind": "Program",
+      "semantic_type": null,
+      "span": {
+        "end_col": 2,
+        "end_line": 5,
+        "start_col": 1,
+        "start_line": 1
+      }
+    },
+    "cfg": null,
+    "codegen": null,
+    "dataflow": null,
+    "diagnostics": [
+      {
+        "code": "E-SEM-001",
+        "message": "call to undeclared function 'compute'",
+        "related": null,
+        "severity": "error",
+        "span": {
+          "end_col": 38,
+          "end_line": 2,
+          "start_col": 17,
+          "start_line": 2
+        },
+        "stage": "semantic"
+      },
+      {
+        "code": "E-SEM-001",
+        "message": "'unknown_name' is not declared",
+        "related": null,
+        "severity": "error",
+        "span": {
+          "end_col": 37,
+          "end_line": 2,
+          "start_col": 25,
+          "start_line": 2
+        },
+        "stage": "semantic"
+      }
+    ],
+    "ir": null,
+    "mode": "analyze",
+    "optimization": null,
+    "semantic": {
+      "functions": [
+        {
+          "ir_name": "main",
+          "name": "main",
+          "node_id": "n2",
+          "params": [],
+          "return_type": "int",
+          "span": {
+            "end_col": 2,
+            "end_line": 5,
+            "start_col": 1,
+            "start_line": 1
+          }
+        }
+      ],
+      "scopes": [
+        {
+          "depth": 0,
+          "id": 1,
+          "kind": "function",
+          "parent": null,
+          "symbols": [
+            "total"
+          ]
+        }
+      ],
+      "summary": {
+        "function_count": 1,
+        "scope_count": 1,
+        "symbol_count": 1,
+        "unused_symbols": []
+      },
+      "symbols": [
+        {
+          "declaration_span": {
+            "end_col": 38,
+            "end_line": 2,
+            "start_col": 5,
+            "start_line": 2
+          },
+          "initialized": true,
+          "ir_name": "total",
+          "kind": "local",
+          "name": "total",
+          "node_id": "n4",
+          "read": true,
+          "scope": 1,
+          "type": "int"
+        }
+      ]
+    },
+    "stages_run": [
+      "tokens",
+      "ast",
+      "semantic"
+    ],
+    "stages_skipped": [
+      "ir",
+      "cfg",
+      "dataflow",
+      "analysis",
+      "optimization",
+      "codegen"
+    ],
+    "success": false,
+    "timings": {
+      "ast": 0.0,
+      "semantic": 0.0,
+      "tokens": 0.0
+    },
+    "tokens": [
+      {
+        "category": "keyword",
+        "lexeme": "int",
+        "span": {
+          "end_col": 4,
+          "end_line": 1,
+          "start_col": 1,
+          "start_line": 1
+        },
+        "type": "int_kw",
+        "value": "int"
+      },
+      {
+        "category": "identifier",
+        "lexeme": "main",
+        "span": {
+          "end_col": 9,
+          "end_line": 1,
+          "start_col": 5,
+          "start_line": 1
+        },
+        "type": "ident",
+        "value": "main"
+      },
+      {
+        "category": "punctuation",
+        "lexeme": "(",
+        "span": {
+          "end_col": 10,
+          "end_line": 1,
+          "start_col": 9,
+          "start_line": 1
+        },
+        "type": "(",
+        "value": null
+      },
+      {
+        "category": "punctuation",
+        "lexeme": ")",
+        "span": {
+          "end_col": 11,
+          "end_line": 1,
+          "start_col": 10,
+          "start_line": 1
+        },
+        "type": ")",
+        "value": null
+      },
+      {
+        "category": "punctuation",
+        "lexeme": "{",
+        "span": {
+          "end_col": 13,
+          "end_line": 1,
+          "start_col": 12,
+          "start_line": 1
+        },
+        "type": "{",
+        "value": null
+      },
+      {
+        "category": "keyword",
+        "lexeme": "int",
+        "span": {
+          "end_col": 8,
+          "end_line": 2,
+          "start_col": 5,
+          "start_line": 2
+        },
+        "type": "int_kw",
+        "value": "int"
+      },
+      {
+        "category": "identifier",
+        "lexeme": "total",
+        "span": {
+          "end_col": 14,
+          "end_line": 2,
+          "start_col": 9,
+          "start_line": 2
+        },
+        "type": "ident",
+        "value": "total"
+      },
+      {
+        "category": "punctuation",
+        "lexeme": "=",
+        "span": {
+          "end_col": 16,
+          "end_line": 2,
+          "start_col": 15,
+          "start_line": 2
+        },
+        "type": "=",
+        "value": null
+      },
+      {
+        "category": "identifier",
+        "lexeme": "compute",
+        "span": {
+          "end_col": 24,
+          "end_line": 2,
+          "start_col": 17,
+          "start_line": 2
+        },
+        "type": "ident",
+        "value": "compute"
+      },
+      {
+        "category": "punctuation",
+        "lexeme": "(",
+        "span": {
+          "end_col": 25,
+          "end_line": 2,
+          "start_col": 24,
+          "start_line": 2
+        },
+        "type": "(",
+        "value": null
+      },
+      {
+        "category": "identifier",
+        "lexeme": "unknown_name",
+        "span": {
+          "end_col": 37,
+          "end_line": 2,
+          "start_col": 25,
+          "start_line": 2
+        },
+        "type": "ident",
+        "value": "unknown_name"
+      },
+      {
+        "category": "punctuation",
+        "lexeme": ")",
+        "span": {
+          "end_col": 38,
+          "end_line": 2,
+          "start_col": 37,
+          "start_line": 2
+        },
+        "type": ")",
+        "value": null
+      },
+      {
+        "category": "punctuation",
+        "lexeme": ";",
+        "span": {
+          "end_col": 39,
+          "end_line": 2,
+          "start_col": 38,
+          "start_line": 2
+        },
+        "type": ";",
+        "value": null
+      },
+      {
+        "category": "keyword",
+        "lexeme": "printf",
+        "span": {
+          "end_col": 11,
+          "end_line": 3,
+          "start_col": 5,
+          "start_line": 3
+        },
+        "type": "printf_kw",
+        "value": "printf"
+      },
+      {
+        "category": "punctuation",
+        "lexeme": "(",
+        "span": {
+          "end_col": 12,
+          "end_line": 3,
+          "start_col": 11,
+          "start_line": 3
+        },
+        "type": "(",
+        "value": null
+      },
+      {
+        "category": "literal",
+        "lexeme": "\"%d\\n\"",
+        "span": {
+          "end_col": 18,
+          "end_line": 3,
+          "start_col": 12,
+          "start_line": 3
+        },
+        "type": "string",
+        "value": "%d\n"
+      },
+      {
+        "category": "punctuation",
+        "lexeme": ",",
+        "span": {
+          "end_col": 19,
+          "end_line": 3,
+          "start_col": 18,
+          "start_line": 3
+        },
+        "type": ",",
+        "value": null
+      },
+      {
+        "category": "identifier",
+        "lexeme": "total",
+        "span": {
+          "end_col": 25,
+          "end_line": 3,
+          "start_col": 20,
+          "start_line": 3
+        },
+        "type": "ident",
+        "value": "total"
+      },
+      {
+        "category": "punctuation",
+        "lexeme": ")",
+        "span": {
+          "end_col": 26,
+          "end_line": 3,
+          "start_col": 25,
+          "start_line": 3
+        },
+        "type": ")",
+        "value": null
+      },
+      {
+        "category": "punctuation",
+        "lexeme": ";",
+        "span": {
+          "end_col": 27,
+          "end_line": 3,
+          "start_col": 26,
+          "start_line": 3
+        },
+        "type": ";",
+        "value": null
+      },
+      {
+        "category": "keyword",
+        "lexeme": "return",
+        "span": {
+          "end_col": 11,
+          "end_line": 4,
+          "start_col": 5,
+          "start_line": 4
+        },
+        "type": "return_kw",
+        "value": "return"
+      },
+      {
+        "category": "literal",
+        "lexeme": "0",
+        "span": {
+          "end_col": 13,
+          "end_line": 4,
+          "start_col": 12,
+          "start_line": 4
+        },
+        "type": "int",
+        "value": 0
+      },
+      {
+        "category": "punctuation",
+        "lexeme": ";",
+        "span": {
+          "end_col": 14,
+          "end_line": 4,
+          "start_col": 13,
+          "start_line": 4
+        },
+        "type": ";",
+        "value": null
+      },
+      {
+        "category": "punctuation",
+        "lexeme": "}",
+        "span": {
+          "end_col": 2,
+          "end_line": 5,
+          "start_col": 1,
+          "start_line": 5
+        },
+        "type": "}",
+        "value": null
+      },
+      {
+        "category": "eof",
+        "lexeme": "",
+        "span": {
+          "end_col": 1,
+          "end_line": 6,
+          "start_col": 1,
+          "start_line": 6
+        },
+        "type": "eof",
+        "value": null
+      }
+    ]
+  },
+  "source": "int main() {\n    int total = compute(unknown_name);\n    printf(\"%d\\n\", total);\n    return 0;\n}\n"
+}
