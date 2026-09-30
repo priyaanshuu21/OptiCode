@@ -10,8 +10,32 @@ Source → Lexer → Parser → AST → Semantic → TAC → Basic Blocks → CF
        → Optimized Source
 ```
 
-Full documentation lands progressively in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
-and [`docs/LANGUAGE.md`](docs/LANGUAGE.md).
+Full documentation lives in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+(pipeline, invariants, API contracts, frontend) and [`docs/LANGUAGE.md`](docs/LANGUAGE.md)
+(the MiniC language rules).
+
+## Features
+
+- **Full pipeline in one response.** `POST /api/compile` lexes, parses, checks,
+  lowers to TAC, builds CFGs, runs three data-flow analyses, reports findings with
+  explanations, and — in `optimize` mode — rewrites to a fixpoint, verifies the
+  result against the original in the interpreter, and regenerates readable source.
+- **Control-flow graphs.** React Flow + dagre layout, color-coded edges
+  (`true` / `false` / `jump` / `fallthrough` / `return`), dashed back-edges,
+  unreachable blocks badged, click-to-inspect with source cross-highlighting.
+- **Data-flow explorer.** Liveness, reaching definitions, and constants with
+  per-block IN/OUT facts and a stepper that replays the solver trace.
+- **Findings with evidence.** Dead assignments, unreachable code, constant
+  conditions, and reads-before-init, each with the evidence behind the claim;
+  the editor dims unreachable code and marks dead writes with hover text.
+- **Optimization report.** Before/after sizes, per-pass stats, every rewrite as
+  an event, everything skipped with its reason, the interpreter-oracle verdict,
+  and a side-by-side TAC diff.
+- **Examples library.** 15 valid programs plus 14 negative cases in
+  [`examples/`](examples/), described by `examples/manifest.json` and served by
+  `GET /api/examples` and `GET /api/examples/{name}` (slug-checked and
+  contained, so names cannot escape the directory). The UI loads them from a
+  dropdown.
 
 ## Status
 
@@ -27,6 +51,8 @@ and [`docs/LANGUAGE.md`](docs/LANGUAGE.md).
 | Optimizer | done |
 | Codegen | done |
 | Frontend shell and stage views | done |
+| CFG, data-flow, findings, optimization views | done |
+| Examples library (`examples/`, manifest, API, UI menu) | done |
 
 `/api/compile` returns `tokens`, `ast`, `semantic`, `ir`, `cfg`, `dataflow`, and
 `analysis`. The `optimization` payload appears when the request asks for `mode: "optimize"`,
@@ -35,8 +61,28 @@ in the interpreter. `codegen` comes back with it, holding the regenerated progra
 text, an annotated variant that shows removed lines as comments, and a change map saying what
 was rewritten and which pass justified each one. Every rewrite is verified by re-compiling the
 generated text and running the interpreter oracle against the original, so a rewrite that
-changes behaviour is discarded rather than returned. See `docs/ARCHITECTURE.md` for scope and
-`docs/LANGUAGE.md` for the language rules.
+changes behaviour is discarded rather than returned. `GET /api/examples` lists the curated
+programs and `GET /api/examples/{name}` returns one with its source. See
+`docs/ARCHITECTURE.md` for scope and `docs/LANGUAGE.md` for the language rules.
+
+## Before / after
+
+`examples/valid/12_constant_folding.c` contains a function the compiler can
+evaluate without running anything:
+
+```c
+int folded_add() {
+    return 2 + 3 * 4;
+}
+```
+
+In `optimize` mode the report shows the fold as an event
+(`2 + 3 * 4` → `14`, justified by constant folding), the regenerated source
+returns the literal, and the interpreter oracle confirms both programs print
+the same output — which is why the verification badge reads as matched runs
+rather than trust. Expressions the compiler must not touch, like
+`10 + x * 2` in `mixed_with_variable`, are listed under skipped with the
+reason (`x` is only known at run time).
 
 ## Requirements
 
@@ -76,14 +122,13 @@ and the diagnostics. Selecting anything in a stage highlights the source range i
 ## Run the tests
 
 ```powershell
-cd backend
-.\.venv\Scripts\Activate.ps1
-pytest
+python -m pytest backend/tests -q
 ```
 
 ```powershell
 cd frontend
-npm test
+npm test -- --run
+npm run build
 ```
 
 ## Regenerate the frontend's view of the API
@@ -102,14 +147,19 @@ what keeps a view from being tested against a shape somebody remembered.
 
 ## Examples
 
-Sample programs live in [`backend/examples/`](backend/examples/). Each one compiles
-through the full pipeline; run the check with:
+Sample programs live in [`examples/`](examples/): 15 valid programs under
+`examples/valid/` and 14 negative cases under `examples/invalid/`, all
+described by [`examples/manifest.json`](examples/manifest.json). Each valid
+example compiles through the full pipeline and each invalid one produces
+exactly its declared diagnostics; run the check with:
 
 ```powershell
-cd backend
-.\.venv\Scripts\Activate.ps1
-python examples\compile_examples.py
+python backend/scripts/compile_examples.py [--dump]
 ```
+
+The same files back `GET /api/examples` and `GET /api/examples/{name}`, so
+the programs the compiler tests and the programs the UI menu offers are the
+same files on disk.
 
 The TAC golden dumps that pin lowering output live in
 [`backend/tests/golden/`](backend/tests/golden/). Regenerate them on purpose after an

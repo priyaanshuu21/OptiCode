@@ -792,13 +792,14 @@ Three things in `frontend/` are generated from the backend and committed:
 |---|---|---|
 | `openapi.json` | `backend/scripts/generate_openapi.py` | the live FastAPI app |
 | `src/api/schema.d.ts` | `npm run gen:types` | `openapi.json` |
-| `src/test/fixtures/*.json` | `backend/scripts/generate_fixtures.py` | six real `/api/compile` responses |
+| `src/test/fixtures/*.json` | `backend/scripts/generate_fixtures.py` | eight real `/api/compile` responses |
 
 The fixtures are recorded responses, not hand-written payloads. That is the point: a view tested
 against a payload somebody typed passes right up until the backend moves a field, which is
-exactly the failure this is meant to catch. The six cover a clean analyze, a loop with two
-functions, I/O, mixed types, dead code under optimize, and a program that fails semantic
-analysis — chosen because between them they exercise every "this stage did not run" path.
+exactly the failure this is meant to catch. The eight cover a clean analyze, a loop with two
+functions, I/O, mixed types, dead code under optimize, a program that fails semantic
+analysis, constant folding, and unreachable code — chosen because between them they exercise
+every "this stage did not run" path.
 
 `src/api/types.ts` is written by hand, and that is deliberate. The backend declares most payload
 members as `Any`, because they are whatever the stage produced, so the generated types are
@@ -822,13 +823,21 @@ comment.
 | Tokens | `tokens` | table, in source order, selecting a row highlights its span |
 | AST | `ast` | indented outline plus an attribute pane; a graph would be a hairball at this size |
 | TAC | `ir`, `dataflow` | table with the optimizer's own facts, or the backend's `ir.text` verbatim |
-| Blocks | `cfg` | React Flow, positioned by dagre |
+| CFG | `cfg` | React Flow, positioned by dagre; shared `BlockGraph` component |
+| Data flow | `cfg`, `dataflow` | the same graph with per-block IN/OUT badges, fact tables, and a solver-trace stepper |
+| Findings | `analysis` | grouped by kind with evidence, each jumping to its source span |
+| Optimization | `optimization`, `ir`, `codegen` | report (sizes, passes, skipped with reasons, oracle verdict), events, TAC diff |
 | Diagnostics | `diagnostics` | grouped by severity, filterable |
 
-Two choices are worth naming. The TAC text mode shows `ir.text` verbatim rather than
+Four choices are worth naming. The TAC text mode shows `ir.text` verbatim rather than
 reformatting it, because a second implementation of that format would eventually disagree with
-the backend about it. And the Blocks view trusts `is_back_edge` from the CFG builder rather than
-re-deriving loops from node ranks, for the same reason.
+the backend about it. The CFG and data-flow views share one `BlockGraph` (one layout
+function, one node id space) so selecting a block in one tab still means the same block in
+the other. The graph trusts `is_back_edge` from the CFG builder rather than re-deriving
+loops from node ranks, for the same reason. And the Monaco editor keeps findings as a
+separate decorations collection from the selection highlight, so dead-code annotations
+(dimmed unreachable code, marked dead writes with hover explanations) never fight the
+user's cursor.
 
 ### 8.4 Skipped stages are not empty results
 
@@ -845,4 +854,34 @@ One Zustand store holds the source, the mode, the response, and the current sour
 The selection is shared because the views are not independent: selecting an AST node is what
 lights up the code, and selecting a block is what reveals its instructions. Per-view state
 (which tab, which function, table vs text) stays local, because nothing else depends on it.
+
+## 9. Examples library
+
+The curated programs in `examples/` are the compiler's regression corpus *and* the
+frontend's menu, served from the same files so the two cannot drift apart.
+`examples/manifest.json` is the only index: 15 valid programs under
+`examples/valid/`, 14 negative cases under `examples/invalid/`, each with a
+title, summary, tags, expected diagnostics, stdin, and a suggested mode.
+
+| Route | Payload |
+|---|---|
+| `GET /api/examples` | every example's metadata without source, plus valid/invalid counts |
+| `GET /api/examples/{name}` | one example's metadata with its source text and line count |
+
+The implementation lives in `opticode.api.examples`, and its three rules are
+enforced there rather than trusted:
+
+1. **The manifest is the only index.** A request names an example; the file it
+   resolves to comes from the manifest. A name that is not listed cannot reach
+   a file.
+2. **Names are slugs.** Only lowercase alphanumerics and single hyphens are
+   accepted, which rules out `.`, `/`, `\` before any path is built. A
+   non-slug is a malformed request (400), a well-formed miss is a 404.
+3. **The resolved path is checked against the root anyway.** After symlinks and
+   `..` are collapsed, the target must still be inside `examples/`, so a
+   hand-edited manifest or a planted symlink cannot escape it (both covered by
+   tests, including a symlink-out case).
+
+The manifest is re-read per request and file reads are cached against mtime,
+so editing an example is visible on the next request without a restart.
 
