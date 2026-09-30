@@ -11,6 +11,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from opticode.analysis import analyze_findings, analyze_functions  # noqa: E402
+from opticode.analysis.findings import diagnostics_for  # noqa: E402
+from opticode.cfg import build_program_cfgs  # noqa: E402
 from opticode.ir import check_program, lower, print_program  # noqa: E402
 from opticode.parser import parse  # noqa: E402
 from opticode.semantic import analyze  # noqa: E402
@@ -53,13 +56,25 @@ for path in examples:
         failures += 1
         continue
 
+    graphs = build_program_cfgs(lowered.program)
+    report = analyze_findings(
+        lowered.program,
+        cfgs=graphs,
+        analyses=analyze_functions(lowered.program, cfgs=graphs),
+        ast=program,
+        source=source,
+    )
+
     warnings = [d for d in result.diagnostics if d.severity.value == "warning"]
+    warnings += [d for d in diagnostics_for(report) if d.severity.value == "warning"]
     counts = sum(len(f.instructions) for f in lowered.program.functions)
+    removable = sum(1 for f in report.findings if f.action.value == "will_be_removed")
     status = "ok " if not warnings else "warn"
     print(f"{status} {path.name:28} funcs={len(lowered.program.functions)} "
-          f"instructions={counts}")
+          f"instructions={counts} findings={len(report.findings)} removable={removable}")
     for d in warnings:
-        print(f"       {d.code_str} {d.message}")
+        line = d.span.start_line if d.span else 0
+        print(f"       {d.code_str} L{line} {d.message}")
 
     if "--dump" in sys.argv:
         print(print_program(lowered.program))

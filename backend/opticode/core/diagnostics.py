@@ -105,6 +105,21 @@ class DiagnosticCode(StrEnum):
     E315_MISSING_RETURN = "W-SEM-003"
     E316_DIVIDE_BY_ZERO = "W-SEM-004"
 
+    # Analysis
+    #
+    # These are the CFG-precise counterparts of the three semantic warnings above. Where the
+    # analysis only restates what the semantic stage already reported, its finding carries
+    # `duplicate_of` instead of producing a second warning on the same line.
+    E400_UNREACHABLE_CODE = "W-ANL-001"
+    E401_CONDITIONALLY_UNREACHABLE = "W-ANL-002"
+    E402_DEAD_ASSIGNMENT = "W-ANL-003"
+    E403_UNUSED_CALL_RESULT = "I-ANL-001"
+    E404_UNUSED_READ_RESULT = "I-ANL-002"
+    E405_USE_BEFORE_INIT = "W-ANL-004"
+    E406_MISSING_RETURN = "W-ANL-005"
+    E407_CONSTANT_CONDITION = "I-ANL-003"
+    E408_DIVISION_BY_ZERO = "W-ANL-006"
+
 
 @dataclass(frozen=True, slots=True)
 class RelatedInformation:

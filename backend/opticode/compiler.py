@@ -10,7 +10,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from .analysis import analyze as analyze_program
+from .analysis import analyze_findings as analyze_dead_code
+from .analysis import analyze_functions as analyze_program_functions
+from .analysis import diagnostics_for
+from .analysis.results import FunctionAnalysis
 from .analysis.solver import SolverError
 from .cfg.graph import CFG, CFGError, build_program_cfgs
 from .core.diagnostics import Diagnostic, DiagnosticBag, DiagnosticCode, Severity, Stage
@@ -141,6 +144,10 @@ def _stage_dataflow(state: PipelineState) -> StageOutcome:
     than rebuilding, so three analyses cost one graph. It is registered under ``Stage.IR``
     because dataflow runs on TAC and reports compiler-level facts, not user-level errors.
 
+    The solved :class:`FunctionAnalysis` objects are kept rather than serialized, so the
+    analysis stage below reads them directly instead of paying for three more solver runs.
+    Serialization happens once, in :func:`_to_result`.
+
     The analyses are total over well-formed TAC: a transfer function that cannot converge is
     a compiler bug, so :class:`SolverError` becomes an internal error and stops the pipeline
     rather than hanging the request.
@@ -150,7 +157,7 @@ def _stage_dataflow(state: PipelineState) -> StageOutcome:
     if lowered is None or cfgs is None:
         return StageOutcome(name="dataflow", ran=False)
     try:
-        results = analyze_program(lowered.program, cfgs=cfgs)
+        results = analyze_program_functions(lowered.program, cfgs=cfgs)
     except SolverError as error:
         state.diagnostics.error(
             DiagnosticCode.E001_INTERNAL_UNEXPECTED,
@@ -159,6 +166,34 @@ def _stage_dataflow(state: PipelineState) -> StageOutcome:
         )
         return StageOutcome(name="dataflow", ran=False, errored=True)
     return StageOutcome(name="dataflow", value=results)
+
+
+def _stage_analysis(state: PipelineState) -> StageOutcome:
+    """Turn the solved data-flow results into dead-code and unreachable-code findings.
+
+    Every input is already in the pipeline state: the graphs, the solved analyses, the AST
+    for operand spans, and the source text so a message can quote the statement instead of
+    naming a temporary. Nothing here solves anything new, so the stage is pure
+    interpretation of the results above it.
+
+    A failure would be a compiler bug rather than a user error — the findings walk TAC the
+    lowering already proved well-formed — so anything unexpected becomes an internal error
+    that stops the pipeline instead of a misleading finding.
+    """
+    lowered = state.get("ir")
+    cfgs = state.get("cfg")
+    analyses = state.get("dataflow")
+    if lowered is None or cfgs is None or analyses is None:
+        return StageOutcome(name="analysis", ran=False)
+    report = analyze_dead_code(
+        lowered.program,
+        cfgs=cfgs,
+        analyses=analyses,
+        ast=state.get("ast"),
+        source=state.source,
+    )
+    state.diagnostics.extend(diagnostics_for(report))
+    return StageOutcome(name="analysis", value=report.to_dict())
 
 
 # ------------------------------------------------------------------- pipeline
@@ -172,6 +207,7 @@ def build_pipeline() -> Pipeline:
     pipeline.register("ir", Stage.IR, _stage_ir)
     pipeline.register("cfg", Stage.IR, _stage_cfg)
     pipeline.register("dataflow", Stage.IR, _stage_dataflow)
+    pipeline.register("analysis", Stage.ANALYSIS, _stage_analysis)
     return pipeline
 
 
@@ -220,6 +256,7 @@ def _to_result(state: PipelineState) -> CompileResult:
     semantic = state.get("semantic")
     lowered = state.get("ir")
     cfgs = state.get("cfg")
+    dataflow = state.get("dataflow")
     return CompileResult(
         success=success,
         mode=state.mode,
@@ -229,7 +266,7 @@ def _to_result(state: PipelineState) -> CompileResult:
         semantic=serialize_semantic(semantic) if semantic is not None else None,
         ir=serialize_ir(lowered.program) if lowered is not None else None,
         cfg=_serialize_cfgs(cfgs),
-        dataflow=state.get("dataflow"),
+        dataflow=_serialize_dataflow(dataflow),
         analysis=state.get("analysis"),
         optimization=state.get("optimization"),
         codegen=state.get("codegen"),
@@ -244,6 +281,13 @@ def _serialize_cfgs(cfgs: dict[str, CFG] | None) -> dict[str, Any] | None:
     if cfgs is None:
         return None
     return {name: cfg.to_dict() for name, cfg in cfgs.items()}
+
+
+def _serialize_dataflow(analyses: dict[str, FunctionAnalysis] | None) -> dict[str, Any] | None:
+    """Serialize the solved analyses, which the pipeline kept in object form."""
+    if analyses is None:
+        return None
+    return {name: analyses[name].to_dict() for name in sorted(analyses)}
 
 
 def severity_of(diagnostic: Diagnostic) -> str:

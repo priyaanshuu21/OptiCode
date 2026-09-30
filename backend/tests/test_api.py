@@ -167,6 +167,7 @@ def test_health_lists_registered_stages(client: TestClient):
         "ir",
         "cfg",
         "dataflow",
+        "analysis",
     ]
 
 
@@ -371,6 +372,79 @@ def test_dataflow_stage_is_deterministic(client: TestClient):
     assert _compile(client, source)["dataflow"] == _compile(client, source)["dataflow"]
 
 
+# ------------------------------------------------------------ analysis stage
+
+
+def test_analysis_payload_is_returned(client: TestClient):
+    body = _compile(
+        client,
+        "int f() {\n    return 0;\n    int dead = 1;\n    return dead;\n}\n",
+    )
+    analysis = body["analysis"]
+    assert analysis is not None
+    assert analysis["finding_count"] == 2
+    assert analysis["unreachable_blocks"] == ["f:B2"]
+    assert analysis["summary"] == {"unreachable_code": 2}
+    assert [f["kind"] for f in analysis["findings"]] == ["unreachable_code"] * 2
+    assert [f["span"]["start_line"] for f in analysis["findings"]] == [3, 4]
+
+
+def test_analysis_findings_carry_spans_evidence_and_an_action(client: TestClient):
+    body = _compile(
+        client,
+        "int f() { int x = 1; x = 2; printf(\"%d\\n\", x); return 0; }",
+    )
+    finding = next(f for f in body["analysis"]["findings"] if f["kind"] == "dead_assignment")
+    assert finding["severity"] == "warning"
+    assert finding["action"] == "will_be_removed"
+    assert finding["function"] == "f"
+    assert finding["span"]["start_line"] == 1
+    assert finding["explanation"]
+    assert finding["evidence"][0]["span"]["start_line"] == 1
+    assert body["analysis"]["dead_instruction_ids"] == finding["instruction_ids"]
+
+
+def test_analysis_diagnostics_appear_alongside_the_payload(client: TestClient):
+    body = _compile(client, "int f() { return 0; int dead = 1; return dead; }")
+    codes = [d["code"] for d in body["diagnostics"]]
+    assert codes.count("W-ANL-001") == 2
+    assert all(d["stage"] == "analysis" for d in body["diagnostics"] if d["code"].startswith("W-ANL"))
+
+
+def test_analysis_reports_a_function_with_nothing_wrong(client: TestClient):
+    body = _compile(client, "int f(int n) { int t = 0; while (n > 0) { t = t + n; n = n - 1; } return t; }")
+    assert body["analysis"]["findings"] == []
+    assert body["analysis"]["finding_count"] == 0
+    assert [d for d in body["diagnostics"] if d["code"].startswith(("W-ANL", "I-ANL"))] == []
+
+
+def test_analysis_is_absent_when_the_ir_stage_failed(client: TestClient):
+    body = _compile(client, "int f() { return undeclared; }")
+    assert body["analysis"] is None
+    assert "analysis" in body["stages_skipped"]
+
+
+def test_analysis_stage_is_deterministic(client: TestClient):
+    source = "int f(int c) { int x = 1; if (c) { x = 2; } return x; int d = 3; return d; }"
+    assert _compile(client, source)["analysis"] == _compile(client, source)["analysis"]
+
+
+def test_a_failing_findings_stage_becomes_a_structured_diagnostic(
+    client: TestClient, monkeypatch
+):
+    """The findings walk is a compiler bug if it throws, not a verdict on the user."""
+    def explode(*args, **kwargs):
+        raise RuntimeError("statement map walked a node twice")
+
+    monkeypatch.setattr("opticode.compiler.analyze_dead_code", explode)
+    body = _compile(client, "int f() { return 0; }")
+    assert body["success"] is False
+    assert [d["code"] for d in body["diagnostics"]] == ["E-INT-001"]
+    assert "RuntimeError" in body["diagnostics"][0]["message"]
+    assert body["analysis"] is None
+    assert body["dataflow"] is not None, "the stage that worked keeps its result"
+
+
 def test_a_non_converging_analysis_becomes_a_structured_diagnostic(
     client: TestClient, monkeypatch
 ):
@@ -380,7 +454,7 @@ def test_a_non_converging_analysis_becomes_a_structured_diagnostic(
     def explode(program, *, cfgs=None):
         raise SolverError("liveness did not converge within 100000 block updates")
 
-    monkeypatch.setattr("opticode.compiler.analyze_program", explode)
+    monkeypatch.setattr("opticode.compiler.analyze_program_functions", explode)
     body = _compile(client, "int f() { return 0; }")
     assert body["success"] is False
     assert [d["code"] for d in body["diagnostics"]] == ["E-INT-001"]
@@ -421,6 +495,7 @@ def test_timings_include_the_new_stages(client: TestClient):
         "ir",
         "cfg",
         "dataflow",
+        "analysis",
     }
 
 

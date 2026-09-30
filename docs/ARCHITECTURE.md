@@ -50,7 +50,8 @@ backend/opticode/
 ├── semantics/       # arith + format: single source of execution truth
 ├── ir/              # TAC model, lowering, printer, interpreter
 ├── cfg/             # basic blocks, edges, reachability, linearize
-├── analysis/        # solver, lattice, liveness, reaching defs, constprop, results
+├── analysis/        # solver, lattice, liveness, reaching defs, constprop, results,
+│                    # findings (dead/unreachable code)
 ├── optimizer/       # pass manager, passes, events
 ├── codegen/         # AST edits, optimized source, change map
 └── api/             # FastAPI app + schemas
@@ -164,6 +165,32 @@ its partial tree.
 `"instruction#operand"`. A read that reaches both `UNDEF(v)` and a real write is **not**
 listed: on that path the value is defined, and only the other path is indeterminate. It is
 the static counterpart to the interpreter's `uninitialized_reads`.
+
+`analysis` is one object rather than a per-function map, and carries the findings for every
+function:
+
+```json
+"analysis": {
+  "findings": [
+    { "id": "f:dead_assignment:n9", "kind": "dead_assignment",
+      "severity": "warning", "function": "f", "block": "B1",
+      "message": "the value assigned to `x` is overwritten before it is read",
+      "explanation": "`x` is reassigned here, so the value written on line 1 ...",
+      "action": "will_be_removed",
+      "span": { "start_line": 1, "start_col": 5, "end_line": 1, "end_col": 6 },
+      "evidence": [ { "span": {...}, "note": "`x` is reassigned here" } ],
+      "instruction_ids": ["i1"], "ast_node_id": "n9",
+      "kept_reason": null, "duplicate_of": null }
+  ],
+  "summary": { "dead_assignment": 1 },
+  "unreachable_blocks": [],
+  "dead_instruction_ids": ["i1"],
+  "finding_count": 1
+}
+```
+
+`kept_reason` is present only on a finding whose action is `kept`, and `duplicate_of` only
+when the semantic stage already reported the same fact.
 
 ### 4.5 AST
 
@@ -418,7 +445,84 @@ operands are known, and returns NAC when it cannot:
 Folding goes through `opticode.semantics.arith`, the same module the interpreter uses, so
 "this expression folds to 5" and "this expression evaluates to 5" cannot drift apart.
 
-### 4.11 Execution outcome
+### 4.11 Dead and unreachable code
+
+`opticode.analysis.findings` turns the data-flow facts above into a list of `Finding`s.
+It changes no code: every finding is an explanation with an `action` saying whether
+deleting it would be safe, and `will_be_removed` findings are exactly the ones a later
+optimizer pass is allowed to act on.
+
+```python
+Finding(id, kind, severity, function, message, explanation, action, span,
+        evidence, instruction_ids, ast_node_id, block, kept_reason, duplicate_of)
+```
+
+* `kind`: `unreachable_code | conditionally_unreachable | dead_assignment |
+  unused_call_result | unused_read_result | use_before_initialization | missing_return |
+  constant_condition | constant_division_by_zero`.
+* `action`: `will_be_removed | kept | informational`. `will_be_removed` means the analysis
+  can prove deletion is unobservable; `kept` means the statement looks dead but has a side
+  effect or a possible trap, and `kept_reason` says which.
+* `evidence`: spans with a one-line note each — the `return` that cut the path, the
+  reassignment that overwrote a value, the comparison that made a branch dead.
+* `AnalysisReport` adds `summary` (count per kind), `unreachable_blocks`, and
+  `dead_instruction_ids`. Findings are sorted by position, so two runs are byte-identical.
+
+The API payload is `analysis`, an object rather than a per-function map: a finding is a
+statement-level claim that may cite several blocks, and keying by function would force a
+choice that the diagnostic's own `function` field already makes.
+
+#### Unreachability
+
+A block is **structurally unreachable** when no predecessor reaches it at all. Its first
+statement is reported as `unreachable_code` (warning), and the terminator of the block
+that precedes it — `return`, `break`, `continue`, or `goto` — is quoted as evidence. The
+loop back edge that `while` lowers to carries the loop's own AST node and is deliberately
+excluded, so an `if (0)` body is flagged without also flagging the user's `while`.
+
+A block is **conditionally unreachable** when constant propagation proves an incoming edge
+never runs. Reachability is then recomputed by BFS from the entry over the edges the
+constant facts leave standing, and only the blocks that fall out are reported. That is why
+`while (1)` with a `break` reports nothing after the loop: the `break` puts the false edge
+back, and the tail stays reachable. `if (0)` bodies and the tail of a `while (1)` with no
+exit are reported as `conditionally_unreachable` (warning).
+
+#### Dead stores
+
+An assignment is dead when its destination is not in `live_out` of its block. Three things
+keep that from being a lie:
+
+* **Statement grouping.** Lowering gives one source statement several instruction IDs, and
+  the copy that lands the value is not the expression that computed it. Instructions are
+  grouped by the innermost AST `Stmt` that produced them, so `int y = x;` is one statement
+  with one finding even though the copy and the expression carry different node IDs.
+* **Producer closure.** A dead-looking statement may still be the only user of a value whose
+  *definition* has effects: a `printf`, a `scanf`, a call, or a division that traps. The
+  analysis walks backwards through the def-use chains to the producers of the statement's
+  operands and keeps the statement if any of them can print, read, call, or trap. When both
+  apply, the trap wins. `int z = 3 / d;` is therefore reported but marked `kept`, not as a
+  deletion.
+* **No double reporting.** Statements in unreachable blocks are reported once, as
+  unreachable. They are not also reported as dead stores.
+
+A value that is overwritten before it is read is a dead store (`W-ANL-003`); a variable that
+is never read at all is `W-SEM-002`'s job, so the analysis records it with
+`duplicate_of="W-SEM-002"` and emits no diagnostic of its own. The same applies to
+`W-SEM-003` (missing return) and `W-SEM-004` (division by zero). One fact, one diagnostic.
+
+#### Other findings
+
+* `use_before_initialization` (`W-ANL-004`) — a read whose only reaching definition is
+  `UNDEF`, with the same "some other path defines it, so this one is not listed" rule the
+  data-flow payload uses.
+* `missing_return` (`W-ANL-005`) — an `int` function with a feasible path to the end that
+  returns no value. `main` and `void` functions are exempt, and a path that is already
+  unreachable does not count.
+* `unused_call_result` / `unused_read_result` (`I-ANL-001` / `I-ANL-002`) — a call or a
+  `scanf` whose value is discarded. Informational: the call stays.
+* `constant_condition` (`I-ANL-003`) and `constant_division_by_zero` (`W-ANL-006`).
+
+### 4.12 Execution outcome
 
 ```python
 ExecutionOutcome(status, return_value, output, steps, uninitialized_reads,
@@ -438,7 +542,7 @@ Arithmetic is never implemented in the interpreter: every operator goes through
 `opticode.semantics.arith`, the same module the constant folder uses, so an interpreted
 program and an optimized one cannot disagree about what `-7 / 2` means.
 
-### 4.11 Provenance
+### 4.13 Provenance
 
 Two identifiers make TAC explainable, and the distinction matters:
 

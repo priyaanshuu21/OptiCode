@@ -15,6 +15,10 @@ every result rather than present-with-a-default.
 per-instruction facts and def-use chains, and returns a plain dict keyed by function name —
 the exact shape the API serializes, so the wire format and the Python result are the same
 object rather than two things kept in sync by hand.
+
+:mod:`.findings` sits on top and answers the question a user actually asks: which
+statements never run, and which assignments write a value nothing reads. It adds no solving,
+only interpretation of the results above.
 """
 
 from __future__ import annotations
@@ -24,11 +28,31 @@ from typing import Any
 from ..cfg import CFG, build_program_cfgs
 from ..ir.tac import IRProgram
 from .constprop import knowns, propagate
+from .findings import (
+    AnalysisReport,
+    Evidence,
+    Finding,
+    FindingAction,
+    FindingKind,
+    analyze_findings,
+    diagnostics_for,
+)
 from .liveness import liveness
 from .reaching import reaching
 from .results import FunctionAnalysis, build_function_analysis
 
-__all__ = ["analyze", "analyze_cfg"]
+__all__ = [
+    "AnalysisReport",
+    "Evidence",
+    "Finding",
+    "FindingAction",
+    "FindingKind",
+    "analyze",
+    "analyze_cfg",
+    "analyze_findings",
+    "analyze_functions",
+    "diagnostics_for",
+]
 
 
 def analyze_cfg(cfg: CFG) -> FunctionAnalysis:
@@ -54,11 +78,22 @@ def analyze_cfg(cfg: CFG) -> FunctionAnalysis:
     )
 
 
+def analyze_functions(program: IRProgram, *, cfgs: dict[str, CFG] | None = None) -> dict[str, FunctionAnalysis]:
+    """Analyze every function in ``program``, keyed by function name.
+
+    This is :func:`analyze` before serialization, and the pipeline uses it so the findings
+    stage reads the solved results instead of paying for three more solver runs per function.
+    """
+    graphs = cfgs if cfgs is not None else build_program_cfgs(program)
+    return {name: analyze_cfg(graph) for name, graph in sorted(graphs.items())}
+
+
 def analyze(program: IRProgram, *, cfgs: dict[str, CFG] | None = None) -> dict[str, Any]:
     """Analyze every function in ``program``, keyed by function name.
 
     ``cfgs`` lets a caller pass graphs it already built — the pipeline does exactly this, so
     it does not rebuild one graph per analysis. When omitted, they are built here.
     """
-    graphs = cfgs if cfgs is not None else build_program_cfgs(program)
-    return {name: analyze_cfg(graph).to_dict() for name, graph in sorted(graphs.items())}
+    return {
+        name: result.to_dict() for name, result in analyze_functions(program, cfgs=cfgs).items()
+    }
