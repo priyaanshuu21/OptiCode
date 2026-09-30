@@ -224,11 +224,96 @@ that did parse. Nesting deeper than 50 blocks or parenthesized expressions is re
 as `E-SYN-005` rather than exhausting the stack, and exceeding the diagnostic budget
 adds a final `E-SYN-008`.
 
-## 3. Execution semantics
+## 3. Static semantics
+
+The analyzer answers what the grammar cannot: whether every name exists, whether types
+line up, and what each expression means. It reports **all** errors in a run rather than
+stopping at the first, and annotates every expression node with its type.
+
+### 3.1 Names and scopes
+
+| Rule | Diagnostic |
+|---|---|
+| Use of an undeclared identifier | `E-SEM-001` |
+| Redeclaration in the same scope | `E-SEM-002` |
+| Shadowing a visible variable | `E-SEM-003` |
+| A variable that is assigned but never read | `W-SEM-002` |
+
+Scopes nest: a function body plus each block. Sibling blocks may reuse a name, and a
+parameter is visible throughout its function. Every declaration gets a unique `ir_name` —
+the source name, or `name_2`, `name_3`, … when the name is reused — so two TAC variables
+never collide even when both were written `i` in the source.
+
+Reading a variable that was declared but never assigned produces no diagnostic and
+evaluates to `0`. C-like languages leave the value indeterminate rather than undefined,
+so refusing to compile would be stricter than the language, and the compiler should not
+depend on garbage. TAC makes this explicit: an uninitialized declaration emits no
+instruction, and the interpreter seeds `declared_locals` to `0` on entry.
+
+### 3.2 Types
+
+MiniC has `int`, `float`, and `void`.
+
+| Expression | Result |
+|---|---|
+| `int op int` | `int` |
+| anything `op float` | `float` (the `int` operand is converted) |
+| `<`, `<=`, `>`, `>=`, `==`, `!=`, `&&`, `\|\|`, `!` | `int` |
+| `%` | `int`, operands must be `int` |
+| `+`, `-`, `*` | `int` or `float` |
+| `/` | `int` or `float` |
+| unary `-` | same type as the operand |
+
+Promotions are inserted explicitly as `itof` and `ftoi` instructions, never left implicit.
+
+Mismatches are errors: using a `void` value (`E-SEM-008`), operands that cannot combine
+(`E-SEM-005`), a call with the wrong argument count or argument types (`E-SEM-006`), or a
+`return` whose type cannot be converted to the function's return type (`E-SEM-007`).
+
+Assigning a `float` to an `int` is **allowed with `W-SEM-001`**, truncating toward zero the
+way C does — and that includes `return 1.5;` from an `int` function. Widening `int` to
+`float` is silent.
+
+Conditions in `if`, `while`, and `for` may be `int` or `float`: zero is false, anything
+else is true, and a `float` is compared against zero.
+
+`main` is not required.
+
+### 3.3 `printf` and `scanf`
+
+`printf` format strings support exactly three specifiers:
+
+| Specifier | Requires |
+|---|---|
+| `%d` | `int` |
+| `%f` | `float` |
+| `%%` | nothing — writes a literal `%` |
+
+Every argument after the format must have a matching specifier, in order. A wrong type is
+`E-SEM-009` and a wrong count is `E-SEM-010`. Only `%d`, `%f`, and `%%` are recognized, so
+`%s`, `%5d`, and `%.2f` are errors rather than approximations — this compiler implements
+exactly the three specifiers it documents.
+
+`scanf` takes the same specifiers, but each argument must be `&` followed by a **declared
+variable** of the matching type. The analyzer records which variable each `read` fills, so
+the UI can show input flowing to the right declaration. An undeclared or non-variable
+target is `E-SEM-011`.
+
+### 3.4 Other diagnostics
+
+| Code | Meaning |
+|---|---|
+| `E-SEM-012` / `E-SEM-013` | `break` / `continue` outside a loop |
+| `W-SEM-003` | a non-void function can finish without returning |
+| `W-SEM-004` | division or modulo by the literal `0` |
+
+`W-SEM-003` is a warning, not an error: such a function returns `0`.
+
+## 4. Execution semantics
 
 > Filled in once the TAC interpreter exists (Task 4).
 
-## 4. Deviations from C
+## 5. Deviations from C
 
 - No preprocessor, `#include`, macros, or conditional compilation.
 - No pointers, arrays, structs, unions, enums, `typedef`, casts, or `char`/`double`.

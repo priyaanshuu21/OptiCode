@@ -14,7 +14,18 @@ and [`docs/LANGUAGE.md`](docs/LANGUAGE.md).
 
 ## Status
 
-The project is being built task by task. See `docs/ARCHITECTURE.md` for current scope.
+| Stage | State |
+|---|---|
+| Lexer | done |
+| Parser and AST | done |
+| Semantic analysis | done |
+| TAC lowering | done |
+| Basic blocks, CFG, interpreter | not started |
+| Analysis, optimizer, codegen, frontend | not started |
+
+`/api/compile` currently returns `tokens`, `ast`, `semantic`, and `ir`. Later stages run
+automatically as they land. See `docs/ARCHITECTURE.md` for scope and
+`docs/LANGUAGE.md` for the language rules.
 
 ## Requirements
 
@@ -43,4 +54,16 @@ pytest
 
 ## Examples
 
-Sample programs live in [`examples/`](examples/).
+Sample programs live in [`backend/examples/`](backend/examples/). Each one compiles
+through the full pipeline; run the check with:
+
+```powershell
+cd backend
+.\.venv\Scripts\Activate.ps1
+python examples\compile_examples.py
+```
+
+The TAC golden dumps that pin lowering output live in
+[`backend/tests/golden/`](backend/tests/golden/). Regenerate them on purpose after an
+intentional lowering change with `python -m tests.regenerate_golden` — the diff is the
+review record.

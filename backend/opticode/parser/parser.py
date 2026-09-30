@@ -597,14 +597,18 @@ class Parser:
         if semicolon:
             self._expect_semi()
         span = span_between(target.span, op_token.span)
-        sugar = "++" if op_token.type is TokenType.INCR else "--"
+        increment = op_token.type is TokenType.INCR
+        sugar = "++" if increment else "--"
+        binary_op = "+" if increment else "-"
         desugared = BinaryExpr(
             span=span,
-            op="+",
+            op=binary_op,
             left=Identifier(span=target.span, name=target.lexeme),
             right=IntLiteral(span=op_token.span, value=1, lexeme="1"),
         )
-        return Assign(span=span, target=target.lexeme, op="+", value=desugared, sugar=sugar)
+        return Assign(
+            span=span, target=target.lexeme, op=binary_op, value=desugared, sugar=sugar
+        )
 
     def parse_if(self) -> Node | None:
         keyword = self.advance()

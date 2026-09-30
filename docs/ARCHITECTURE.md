@@ -26,6 +26,7 @@ Source → Lexer → Tokens → Parser → AST → Semantic Analysis (symbols, t
 | Parser | `opticode.parser` | `Program` AST, unparser |
 | Semantic | `opticode.semantic` | Symbol table, typed AST |
 | TAC lowering | `opticode.ir` | `IRProgram` → `IRFunction[]` → `Instruction[]` |
+| TAC invariants | `opticode.ir` | `InvariantViolation[]` (structural checks) |
 | Blocks / CFG | `opticode.cfg` | `CFG`, `BasicBlock`, `Edge` |
 | Interpreter | `opticode.ir.interpreter` | `ExecutionOutcome` (the semantics oracle) |
 | Data flow | `opticode.analysis` | `DataFlowResult` (liveness, reaching defs, constants) |
@@ -45,7 +46,7 @@ backend/opticode/
 ├── core/            # SourceSpan, Diagnostic, Pipeline (no compiler knowledge)
 ├── lexer/
 ├── parser/          # AST, recursive-descent parser, serializer, unparser
-├── semantic/        # Task 3
+├── semantic/        # symbols, types, analyzer, format checks, serializer
 ├── semantics/       # arith: single source of arithmetic truth
 ├── ir/              # TAC model, lowering, printer, interpreter
 ├── cfg/             # basic blocks, edges, linearize
@@ -148,7 +149,8 @@ Node(id, span, semantic_type)
 
 The node's `kind` is its class name, taken by the serializer rather than stored. `id` is
 the deterministic node id, `span` is the `SourceSpan` the node covers, and
-`semantic_type` is filled in by Task 3 (`None` until then).
+`semantic_type` holds the type the analyzer inferred (`None` for statements and for
+nodes from a program that never reached analysis).
 
 | Node | Key attributes | Children |
 |---|---|---|
@@ -189,6 +191,74 @@ Design points that later tasks depend on:
 - **The unparser is the inverse of the parser.** `parse(unparse(tree))` has the same
   shape as `tree`, modulo source layout. Blocks stay blocks, so braces are never invented
   or dropped.
+
+### 4.6 Semantic result
+
+```python
+SemanticResult(program, diagnostics, symbols, functions, bindings, scanf_targets, ok)
+```
+
+* `symbols`: serializable table. Each entry carries `name`, `ir_name`, `type`, `kind`
+  (`param` | `local` | `function`), `scope_id`, and the declaration `span`.
+* `bindings`: AST node id → `Symbol`. Lowering reads this instead of re-resolving names,
+  because by the time it runs the analyzer's scopes have already been popped.
+* `scanf_targets`: AST node id → target `Symbol`s, in source order, so each `read`
+  instruction maps back to the variable it fills.
+* `ok`: true when the bag holds no errors. Warnings leave `ok` true.
+
+Every declared name gets a unique `ir_name` — the source name, or `name_N` when the name
+is reused in a nested scope — so two TAC variables never collide even when both come from
+`i`.
+
+### 4.7 TAC
+
+```text
+x = y            (copy)          t = a op b       t = op a
+t = itof a       t = ftoi a      label L:
+goto L           if_false a goto L                 t = call f(a, b)
+call f(a, b)     print "fmt", a, b                 read x
+return a         return
+```
+
+```python
+Instruction(id, opcode, dest, operands, target, span, ast_node_id,
+            operand_origin_ids, synthetic, type)
+IRFunction(name, params, return_type, instructions, declared_locals)
+IRProgram(functions)
+```
+
+`uses()`, `defs()`, `has_side_effects()`, and `may_trap()` are derived from the opcode,
+not stored, so they cannot disagree with the instruction itself. `may_trap()` is true for
+`div` and `mod` unless the divisor is a nonzero literal constant.
+
+Lowering rules that later passes depend on:
+
+* Expressions lower post-order into temps; a literal or variable operand is referenced
+  directly rather than copied first, so `if (0)` becomes `if_false 0 goto L`.
+* `&&` and `||` lower to control flow writing a 0/1 temp, so the right operand is not read
+  when the left one already decides the result.
+* `for` lowers to init, condition label, `if_false`, body, continue label, update, `goto`
+  condition, end label. `break` targets the end label, `continue` the continue label.
+* Each `scanf` argument becomes exactly one `read`; each `printf` becomes one `print`.
+* A declaration with no initializer emits nothing. It is listed in the function's
+  `declared_locals` instead, because it is live from function entry while having no
+  defining instruction — dataflow seeds it as defined rather than inferring that from the
+  instruction list.
+* Every non-void function ends with a synthetic `return 0` so TAC is total; a caller never
+  falls off the end of a function body.
+
+### 4.8 Provenance
+
+Two identifiers make TAC explainable, and the distinction matters:
+
+* `ast_node_id` — the node the instruction was produced *for*. A copy that assigns a
+  lowered value points at the assignment, so the UI can highlight the statement.
+* `operand_origin_ids` — the nodes that produced each *operand*. A binary instruction
+  points at its two operand expressions.
+
+This split is what keeps the no-duplication invariant checkable: every AST expression node
+appears in exactly one instruction's origins (or is referenced directly as a literal or
+variable), so a source expression can never be evaluated twice.
 
 ## 5. Error strategy
 

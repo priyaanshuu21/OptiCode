@@ -163,13 +163,15 @@ def test_compound_assignment_is_desugared(sugar, expected_op):
     assert statement.value.right.span.start_col > 0
 
 
-@pytest.mark.parametrize(("sugar", "op"), [("++", "+"), ("--", "+")])
+@pytest.mark.parametrize(("sugar", "op"), [("++", "+"), ("--", "-")])
 def test_increment_is_desugared(sugar, op):
+    """``x--`` desugars to ``x = x - 1``; the operator must match the written sugar."""
     statement = stmts(parse_ok(f"int f() {{ int x = 1; x{sugar}; return x; }}"))[1]
     assert isinstance(statement, Assign)
     assert statement.sugar == sugar
     assert statement.op == op
     assert isinstance(statement.value, BinaryExpr)
+    assert statement.value.op == op
     assert isinstance(statement.value.left, Identifier)
     assert isinstance(statement.value.right, IntLiteral)
     assert statement.value.right.value == 1

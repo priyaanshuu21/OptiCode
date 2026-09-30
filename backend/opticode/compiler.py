@@ -13,10 +13,15 @@ from typing import Any
 from .core.diagnostics import Diagnostic, DiagnosticBag, DiagnosticCode, Severity, Stage
 from .core.pipeline import MAX_SOURCE_SIZE, CompileMode, Pipeline, PipelineState, StageOutcome
 from .core.spans import SourceSpan
+from .ir.invariants import check_program
+from .ir.lower import lower
+from .ir.serialize import serialize_ir
 from .lexer.lexer import Lexer
 from .lexer.tokens import Token
 from .parser.parser import Parser
 from .parser.serialize import serialize_program
+from .semantic.analyzer import analyze
+from .semantic.serialize import serialize_semantic
 
 __all__ = ["CompileResult", "build_pipeline", "compile_source", "MAX_SOURCE_SIZE"]
 
@@ -76,6 +81,34 @@ def _stage_parse(state: PipelineState) -> StageOutcome:
     return StageOutcome(name="ast", value=program)
 
 
+def _stage_semantic(state: PipelineState) -> StageOutcome:
+    program = state.get("ast")
+    if program is None:
+        return StageOutcome(name="semantic", ran=False)
+    result = analyze(program)
+    state.diagnostics.extend(result.diagnostics)
+    return StageOutcome(name="semantic", value=result)
+
+
+def _stage_ir(state: PipelineState) -> StageOutcome:
+    semantic = state.get("semantic")
+    if semantic is None:
+        return StageOutcome(name="ir", ran=False)
+    lowered = lower(semantic)
+    if not lowered.ok:
+        # Lowering only fails when the semantic stage left the tree unusable, so report
+        # it as an internal error rather than blaming the user's program.
+        for message in lowered.errors:
+            state.diagnostics.error(
+                DiagnosticCode.E001_INTERNAL_UNEXPECTED,
+                f"the TAC stage could not lower {message}",
+                stage=Stage.IR,
+            )
+        return StageOutcome(name="ir", ran=False, errored=True)
+    check_program(lowered.program)
+    return StageOutcome(name="ir", value=lowered)
+
+
 # ------------------------------------------------------------------- pipeline
 
 
@@ -83,6 +116,8 @@ def build_pipeline() -> Pipeline:
     pipeline = Pipeline()
     pipeline.register("tokens", Stage.LEXER, _stage_lex)
     pipeline.register("ast", Stage.PARSER, _stage_parse)
+    pipeline.register("semantic", Stage.SEMANTIC, _stage_semantic)
+    pipeline.register("ir", Stage.IR, _stage_ir)
     return pipeline
 
 
@@ -128,14 +163,16 @@ def _to_result(state: PipelineState) -> CompileResult:
     bag = DiagnosticBag(state.diagnostics.sorted())
     success = not bag.has_errors()
     program = state.get("ast")
+    semantic = state.get("semantic")
+    lowered = state.get("ir")
     return CompileResult(
         success=success,
         mode=state.mode,
         diagnostics=bag.sorted(),
         tokens=state.get("tokens"),
         ast=serialize_program(program) if program is not None else None,
-        semantic=state.get("semantic"),
-        ir=state.get("ir"),
+        semantic=serialize_semantic(semantic) if semantic is not None else None,
+        ir=serialize_ir(lowered.program) if lowered is not None else None,
         cfg=state.get("cfg"),
         dataflow=state.get("dataflow"),
         analysis=state.get("analysis"),

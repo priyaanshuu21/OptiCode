@@ -159,8 +159,102 @@ def test_parser_errors_still_return_the_partial_ast(client: TestClient):
     assert all(d["span"]["start_line"] >= 1 for d in errors)
 
 
-def test_health_lists_parser_stage(client: TestClient):
-    assert client.get("/api/health").json()["stages"] == ["tokens", "ast"]
+def test_health_lists_registered_stages(client: TestClient):
+    assert client.get("/api/health").json()["stages"] == [
+        "tokens",
+        "ast",
+        "semantic",
+        "ir",
+    ]
+
+
+# ------------------------------------------------------- semantic and ir stages
+
+
+def _compile(client: TestClient, source: str) -> dict:
+    response = client.post("/api/compile", json={"source": source})
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def test_semantic_payload_is_returned(client: TestClient):
+    body = _compile(client, "int f(int a, float b) { int c = 0; return a; }")
+    assert body["success"] is True
+    semantic = body["semantic"]
+    assert semantic is not None
+    assert semantic["summary"]["function_count"] == 1
+    assert {symbol["name"] for symbol in semantic["symbols"]} == {"a", "b", "c"}
+
+
+def test_semantic_payload_lists_ir_names(client: TestClient):
+    body = _compile(client, "int f() { int i; return i; } int g() { int i; return i; }")
+    names = [symbol["ir_name"] for symbol in body["semantic"]["symbols"]]
+    assert names == ["i", "i_2"]
+
+
+def test_ir_payload_is_returned(client: TestClient):
+    body = _compile(client, "int f(int a) { return a + 1; }")
+    ir = body["ir"]
+    assert ir is not None
+    assert ir["function_count"] == 1
+    assert ir["functions"][0]["instructions"]
+
+
+def test_ir_payload_includes_the_printed_tac(client: TestClient):
+    """The UI shows TAC verbatim, so the payload carries the printer's own text."""
+    body = _compile(client, "int f(int a) { return a + 1; }")
+    text = body["ir"]["text"]
+    assert "# f(int a) -> int" in text
+    assert "t1 = a + 1" in text
+    assert "return 0  [synthetic]" in text
+
+
+def test_ir_instructions_carry_their_queries(client: TestClient):
+    body = _compile(client, "int f(int a) { return a / 2; }")
+    instruction = body["ir"]["functions"][0]["instructions"][0]
+    assert set(instruction) >= {"uses", "defs", "has_side_effects", "may_trap", "ast_node_id"}
+
+
+def test_semantic_errors_stop_the_ir_stage_but_keep_the_ast(client: TestClient):
+    """Partial results are the point of the pipeline: the AST survives, IR does not."""
+    body = _compile(client, "int f() { return undeclared; }")
+    assert body["success"] is False
+    assert body["ast"] is not None
+    assert body["semantic"] is not None
+    assert body["ir"] is None
+    assert "ir" in body["stages_skipped"]
+    assert [d["code"] for d in body["diagnostics"]] == ["E-SEM-001"]
+
+
+def test_semantic_warnings_do_not_stop_the_pipeline(client: TestClient):
+    body = _compile(client, "int f() { int unused = 1; return 0; }")
+    assert body["success"] is True
+    assert body["ir"] is not None
+    assert [d["code"] for d in body["diagnostics"]] == ["W-SEM-002"]
+
+
+def test_lexical_errors_stop_before_semantic(client: TestClient):
+    body = _compile(client, "int f() { return 1 @ 2; }")
+    assert body["semantic"] is None
+    assert body["ir"] is None
+
+
+def test_timings_include_the_new_stages(client: TestClient):
+    body = _compile(client, "int f() { return 0; }")
+    assert set(body["timings"]) == {"tokens", "ast", "semantic", "ir"}
+
+
+def test_compile_output_is_deterministic(client: TestClient):
+    """Two identical requests must agree, apart from wall-clock timings."""
+    payload = {
+        "source": "int f(int n) { int s = 0;"
+        " for (int i = 0; i < n; i = i + 1) { s = s + i; } return s; }"
+    }
+    first = _compile(client, payload["source"])
+    second = _compile(client, payload["source"])
+    first.pop("timings")
+    second.pop("timings")
+    assert first == second
 
 
 def test_internal_errors_become_structured_diagnostics(monkeypatch):
