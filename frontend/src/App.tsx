@@ -92,8 +92,6 @@ function ExamplePicker(): JSX.Element {
   const loaded = useCompilerStore((state) => state.loadedExample)
   const loadExamples = useCompilerStore((state) => state.loadExamples)
   const loadExample = useCompilerStore((state) => state.loadExample)
-  const stdin = useCompilerStore((state) => state.stdin)
-  const setStdin = useCompilerStore((state) => state.setStdin)
 
   useEffect(() => {
     void loadExamples()
@@ -148,29 +146,15 @@ function ExamplePicker(): JSX.Element {
           ))}
         </optgroup>
       </select>
-      <label className="sr-only" htmlFor="stdin-input">
-        Program input
-      </label>
-      <input
-        id="stdin-input"
-        value={stdin}
-        onChange={(event) => setStdin(event.target.value)}
-        placeholder="stdin"
-        title="Input for programs that read. Press Compile to re-run with it."
-        className="w-28 rounded border border-edge bg-surface-overlay px-2 py-1 font-mono text-xs text-slate-200 placeholder:text-slate-600"
-      />
     </div>
   )
 }
 
 function Toolbar(): JSX.Element {
-  const mode = useCompilerStore((state) => state.mode)
-  const setMode = useCompilerStore((state) => state.setMode)
   const run = useCompilerStore((state) => state.run)
   const status = useCompilerStore((state) => state.status)
   const error = useCompilerStore((state) => state.error)
   const health = useCompilerStore((state) => state.health)
-  const selection = useCompilerStore((state) => state.selection)
 
   return (
     <header className="flex shrink-0 items-center gap-4 border-b border-edge bg-surface-raised px-4 py-2">
@@ -179,30 +163,12 @@ function Toolbar(): JSX.Element {
         <span className="font-mono text-2xs text-slate-500">compiler stages</span>
       </div>
 
-      <div className="flex rounded border border-edge" role="group" aria-label="Compiler mode">
-        {(['analyze', 'optimize'] as const).map((option) => (
-          <button
-            key={option}
-            type="button"
-            onClick={() => setMode(option)}
-            aria-pressed={mode === option}
-            className={`px-2.5 py-1 font-mono text-2xs capitalize transition-colors ${
-              mode === option
-                ? 'bg-surface-overlay text-slate-100'
-                : 'text-slate-500 hover:text-slate-300'
-            }`}
-          >
-            {option}
-          </button>
-        ))}
-      </div>
-
       <button
         type="button"
         onClick={() => void run()}
         className="rounded border border-edge-strong px-3 py-1 font-mono text-2xs text-slate-200 hover:bg-surface-overlay"
       >
-        Compile
+        Analyze
       </button>
 
       <ExamplePicker />
@@ -212,11 +178,7 @@ function Toolbar(): JSX.Element {
           <p className="truncate font-mono text-2xs text-severity-error" role="alert">
             {error}
           </p>
-        ) : (
-          <p className="truncate font-mono text-2xs text-slate-500">
-            {selection ? `selected from ${selection.origin} — L${selection.line}` : ''}
-          </p>
-        )}
+        ) : null}
       </div>
 
       <span className="flex shrink-0 items-center gap-1.5 font-mono text-2xs text-slate-500">

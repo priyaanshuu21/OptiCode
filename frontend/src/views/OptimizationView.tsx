@@ -1,6 +1,6 @@
 import { useMemo, useState, type JSX } from 'react'
 
-import { optimizationOf, stageSkipped } from '@/api/client'
+import { codegenOf, optimizationOf, stageSkipped } from '@/api/client'
 import type { OptimizationEvent, IrProgram, SkippedGap } from '@/api/types'
 import { formatLines } from '@/lib/span'
 import { useCompilerStore } from '@/store/compiler'
@@ -143,9 +143,16 @@ function EventList({ events }: { events: OptimizationEvent[] }): JSX.Element {
 export function OptimizationView(): JSX.Element {
   const response = useCompilerStore((state) => state.response)
   const original = response?.ir ?? null
+  const mode = useCompilerStore((state) => state.mode)
+  const setMode = useCompilerStore((state) => state.setMode)
+  const run = useCompilerStore((state) => state.run)
+  const status = useCompilerStore((state) => state.status)
+  const setSource = useCompilerStore((state) => state.setSource)
+  const select = useCompilerStore((state) => state.select)
   const [section, setSection] = useState<Section>('report')
 
   const report = useMemo(() => (response ? optimizationOf(response) : null), [response])
+  const codegen = useMemo(() => (response ? codegenOf(response) : null), [response])
 
   if (!response) {
     return (
@@ -156,13 +163,30 @@ export function OptimizationView(): JSX.Element {
   }
 
   if (!report) {
+    const busy = status === 'compiling'
     return (
       <Panel title="Optimizer" subtitle="The optimizer did not run.">
         <EmptyState
           title="No report"
-          detail="The optimizer only runs in optimize mode. Switch the mode toggle above, or read what the analyses concluded without rewriting anything."
+          detail="The optimizer only runs in optimize mode. Run the optimizer to rewrite the program, or read what the analyses concluded without rewriting anything."
           skipped={stageSkipped(response, 'optimizer')}
         />
+        <div className="flex justify-center pb-6">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              if (mode !== 'optimize') {
+                setMode('optimize')
+              } else {
+                void run()
+              }
+            }}
+            className="rounded border border-edge-strong px-4 py-1.5 font-mono text-xs text-slate-100 hover:bg-surface-overlay disabled:opacity-40"
+          >
+            {busy ? 'Optimizing…' : 'Run Optimizer'}
+          </button>
+        </div>
       </Panel>
     )
   }
@@ -330,7 +354,30 @@ export function OptimizationView(): JSX.Element {
           <EventList events={report.events} />
         </div>
       ) : (
-        <Diff before={before?.text ?? ''} after={after.text} />
+        <div>
+          {codegen?.source ? (
+            <div className="flex items-center justify-between gap-3 border-b border-edge px-4 py-2">
+              <p className="font-mono text-2xs text-slate-500">
+                {codegen.applied
+                  ? 'codegen rewrote the source — apply it to keep editing from the optimized program'
+                  : 'the optimized source is ready to edit from'}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  if (codegen?.source != null) {
+                    setSource(codegen.source)
+                    select(null)
+                  }
+                }}
+                className="shrink-0 rounded border border-edge-strong px-3 py-1 font-mono text-2xs text-slate-100 hover:bg-surface-overlay"
+              >
+                Apply to Editor
+              </button>
+            </div>
+          ) : null}
+          <Diff before={before?.text ?? ''} after={after.text} />
+        </div>
       )}
     </Panel>
   )

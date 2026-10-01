@@ -2,7 +2,7 @@ import { useMemo, useState, type JSX } from 'react'
 
 import { astOf, stageSkipped } from '@/api/client'
 import type { AstNode } from '@/api/types'
-import { countAstNodes, formatSpan, maxAstDepth, walkAst } from '@/lib/span'
+import { countAstNodes, formatSpan, maxAstDepth } from '@/lib/span'
 import { useCompilerStore } from '@/store/compiler'
 import { Count, EmptyState, Panel } from '@/components/ui'
 
@@ -17,6 +17,52 @@ import { Count, EmptyState, Panel } from '@/components/ui'
  * The detail panel is what a graph would have given for free: clicking a node shows its full
  * attribute list and selects its span in the editor.
  */
+
+/** One flattened row with its tree-branch connector prefix. */
+interface AstEntry {
+  node: AstNode
+  depth: number
+  role: string
+  prefix: string
+  isLast: boolean
+}
+
+/**
+ * Flatten the tree depth-first, computing a `├── `/`└── `/`│   ` connector prefix per row.
+ *
+ * `parentLasts` tracks, for each ancestor level that occupies a guide column, whether that
+ * ancestor was the last child of its own parent. A last-child ancestor renders blank space
+ * (`    `) because its subtree is finished; any other ancestor renders a vertical guide
+ * (`│   `) because more siblings follow below it.
+ */
+function buildAstEntries(root: AstNode): AstEntry[] {
+  const out: AstEntry[] = []
+  const walk = (
+    node: AstNode,
+    depth: number,
+    role: string,
+    isLast: boolean,
+    parentLasts: boolean[],
+  ): void => {
+    let prefix = ''
+    if (depth > 0) {
+      for (const ancestorLast of parentLasts) {
+        prefix += ancestorLast ? '    ' : '│   '
+      }
+      prefix += isLast ? '└── ' : '├── '
+    }
+    out.push({ node, depth, role, prefix, isLast })
+    const children = node.children ?? []
+    children.forEach((child, index) => {
+      const childLast = index === children.length - 1
+      // The root has no connector column of its own, so it contributes nothing to the guide.
+      const childParents = depth === 0 ? [] : [...parentLasts, isLast]
+      walk(child.node, depth + 1, child.role, childLast, childParents)
+    })
+  }
+  walk(root, 0, 'root', true, [])
+  return out
+}
 
 /** Attribute keys rendered as `key: value` when there is no dedicated row for them. */
 function attributeRows(node: AstNode): { key: string; value: string }[] {
@@ -42,7 +88,7 @@ export function AstView(): JSX.Element {
   const ast = response ? astOf(response) : null
 
   const entries = useMemo(
-    () => (ast ? Array.from(walkAst(ast)) : []),
+    () => (ast ? buildAstEntries(ast) : []),
     [ast],
   )
   const selected = useMemo(
@@ -83,7 +129,7 @@ export function AstView(): JSX.Element {
     >
       <div className="flex h-full min-h-0">
         <div className="min-h-0 flex-1 overflow-auto py-1">
-          {entries.map(({ node, depth, role }) => {
+          {entries.map(({ node, depth, role, prefix }) => {
             const isSelected = node.id === selectedId
             return (
               <button
@@ -102,6 +148,11 @@ export function AstView(): JSX.Element {
                 }`}
                 style={{ paddingLeft: `${depth * 14 + 12}px` }}
               >
+                {prefix ? (
+                  <span aria-hidden="true" className="shrink-0 whitespace-pre text-slate-600">
+                    {prefix}
+                  </span>
+                ) : null}
                 <span className="text-slate-600">{role}</span>
                 <span className="text-slate-200">{node.kind}</span>
                 <span className="text-slate-500">{node.id}</span>

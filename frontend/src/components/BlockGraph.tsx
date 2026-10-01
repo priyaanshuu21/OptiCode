@@ -3,7 +3,6 @@ import {
   Background,
   Controls,
   Handle,
-  MiniMap,
   Position,
   ReactFlow,
   type Node,
@@ -111,13 +110,6 @@ export function BlockGraph({
     >
       <Background color="#243050" gap={18} size={1} />
       <Controls showInteractive={false} className="!bg-surface-raised !border-edge" />
-      <MiniMap
-        pannable
-        zoomable
-        className="!bg-surface-raised !border-edge"
-        nodeColor={() => '#34d399'}
-        maskColor="rgba(8, 12, 24, 0.7)"
-      />
     </ReactFlow>
   )
 }
