@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -6,7 +6,10 @@ import { TokensView } from '@/views/TokensView'
 import { AstView } from '@/views/AstView'
 import { TacView } from '@/views/TacView'
 import { DiagnosticsView } from '@/views/DiagnosticsView'
+import { astNodes } from '@/lib/ast'
+import { countAstNodes } from '@/lib/span'
 import { useCompilerStore } from '@/store/compiler'
+import type { AstNode } from '@/api/types'
 import { loadFixture, type FixtureName } from './fixtures'
 
 /**
@@ -66,16 +69,55 @@ describe('stage views', () => {
     expect(selection?.line).toBeGreaterThan(0)
   })
 
-  it('shows the AST with a node count and a detail pane', async () => {
+  it('shows the AST as a graph with a node count and a detail pane', () => {
     seed('loops')
     render(<AstView />)
 
     expect(screen.getByText(/\d+ nodes/)).toBeInTheDocument()
 
-    const [entry] = screen.getAllByRole('button')
-    expect(entry).toBeDefined()
-    await userEvent.click(entry!)
-    expect(useCompilerStore.getState().selection?.origin).toBeTruthy()
+    // One box per node the tree actually draws, which is fewer than the payload holds because
+    // `Block` nodes are spliced out. A `Block` box would be a node saying nothing.
+    const { response } = loadFixture('loops')
+    const drawn = document.querySelectorAll('.react-flow__node')
+    expect(drawn).toHaveLength(astNodes(response.ast as AstNode).length)
+    expect(drawn.length).toBeLessThan(countAstNodes(response.ast as AstNode))
+  })
+
+  it('selects a node in the graph, highlights its span, and opens the inspector', () => {
+    seed('loops')
+    const { container } = render(<AstView />)
+
+    // fireEvent, not user-event: React Flow wires d3-style drag handlers onto its nodes and
+    // touches `document` in ways jsdom cannot provide. A plain click still reaches `onNodeClick`.
+    const nodes = document.querySelectorAll('.react-flow__node')
+    expect(nodes.length).toBeGreaterThan(1)
+    fireEvent.click(nodes[1] as Element)
+
+    const { selection } = useCompilerStore.getState()
+    expect(selection?.origin).toMatch(/^AST node /)
+    expect(selection?.line).toBeGreaterThan(0)
+
+    // The inspector is scoped because the graph shows three `Function …` boxes of its own; only
+    // the heading inside the aside is this node's.
+    const aside = within(container.querySelector('aside') as HTMLElement)
+    expect(aside.queryByText('No node selected')).not.toBeInTheDocument()
+    expect(aside.getByText(/^Function /)).toBeInTheDocument()
+
+    // A function's own body is a `Block`. It must not be a box, and it must not be a line in the
+    // inspector either — the inspector lists what the graph hangs below the node.
+    expect(container.textContent).not.toContain('Block')
+  })
+
+  it('prints no source coordinates anywhere in the AST panel', () => {
+    seed('loops')
+    const { container } = render(<AstView />)
+
+    fireEvent.click(document.querySelectorAll('.react-flow__node')[1] as Element)
+
+    // A tree covered in `4:9-4:26` is a table of source positions pretending to be a tree. The
+    // editor still highlights the selected node's span; the panel itself must not narrate it.
+    expect(screen.queryByText('Span')).not.toBeInTheDocument()
+    expect(container.textContent ?? '').not.toMatch(/\d+:\d+/)
   })
 
   it('renders TAC as a table by default and as text on request', async () => {

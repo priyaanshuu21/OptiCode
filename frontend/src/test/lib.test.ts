@@ -3,6 +3,15 @@ import { describe, expect, it } from 'vitest'
 import { countAstNodes, formatLines, formatSpan, maxAstDepth, spanJoin, spanToRange, walkAst } from '@/lib/span'
 import { classify, formatOperand, instructionSummary } from '@/lib/ir'
 import { layoutGraph, readableOrder } from '@/lib/layout'
+import {
+  astChildren,
+  astDepth,
+  astLabel,
+  astNodes,
+  attributeRows,
+  classifyNode,
+} from '@/lib/ast'
+import { layoutAst } from '@/components/AstGraph'
 import type { AstNode, FunctionCfg, Instruction, Span } from '@/api/types'
 import { loadFixture } from './fixtures'
 
@@ -103,6 +112,155 @@ describe('AST walking', () => {
 function leaf(id: string): AstNode {
   return { id, kind: 'Leaf', span: SPAN, semantic_type: null, attrs: {}, children: [] }
 }
+
+/** A node with a generated id, for the tests that care about structure rather than identity. */
+let sequence = 0
+function astNode(
+  kind: string,
+  attrs: Record<string, unknown> = {},
+  children: AstNode[] = [],
+): AstNode {
+  sequence += 1
+  return {
+    id: `s${sequence}`,
+    kind,
+    span: SPAN,
+    semantic_type: null,
+    attrs,
+    children: children.map((node) => ({ role: 'statement', node })),
+  }
+}
+
+describe('AST labels', () => {
+  it('names a node after what it declares rather than after its kind or id', () => {
+    expect(astLabel(astNode('FunctionDecl', { name: 'main' }))).toBe('Function main')
+    expect(astLabel(astNode('VarDecl', { name: 'total' }))).toBe('Var total')
+    expect(astLabel(astNode('Assign', { target: 'total' }))).toBe('Assign (total)')
+  })
+
+  it('shows a bare operator, an identifier and a literal as themselves', () => {
+    // These are the leaves. Their whole content is the word, so anything wrapped around it is
+    // padding — `BinaryExpr (+)` says the same thing as `+` in twice the space.
+    expect(astLabel(astNode('BinaryExpr', { op: '<' }))).toBe('<')
+    expect(astLabel(astNode('UnaryExpr', { op: '!' }))).toBe('!')
+    expect(astLabel(astNode('Identifier', { name: 'total' }))).toBe('total')
+    expect(astLabel(astNode('IntLiteral', { value: 0, lexeme: '0' }))).toBe('0')
+  })
+
+  it('keeps a literal the way the source spelled it', () => {
+    // The parsed value of `1.50` is 1.5. Printing the value would quietly rewrite the program
+    // being displayed, which is the sort of small lie that makes a compiler view untrustworthy.
+    expect(astLabel(astNode('FloatLiteral', { value: 1.5, lexeme: '1.50' }))).toBe('1.50')
+  })
+
+  it('renders a kind it has never seen as that kind, not as nothing', () => {
+    expect(astLabel(astNode('GotoStmt', { target: 'end' }))).toBe('GotoStmt')
+  })
+
+  it('shows no id and no role anywhere in the tree', () => {
+    const ast = loadFixture('loops').response.ast as AstNode
+    const labels = astNodes(ast).map(astLabel)
+    for (const label of labels) {
+      expect(label, 'a node id leaked into a label').not.toMatch(/^n\d+$/)
+      for (const role of ['condition', 'statement', 'init', 'update', 'body', 'value', 'left', 'right']) {
+        expect(label.startsWith(role), `${role} leaked into ${label}`).toBe(false)
+      }
+    }
+  })
+})
+
+describe('AST shape as drawn', () => {
+  it('splices Block nodes out, including a Block nested in a Block', () => {
+    // The parser synthesises blocks: a loop body that is a bare declaration becomes one, and a
+    // `for` init with two declarators becomes one inside the `For`. Splicing only the outer would
+    // leave a second box that says nothing.
+    const body = astNode('Block', {}, [astNode('VarDecl', { name: 'i' })])
+    const nested = astNode('Block', {}, [astNode('VarDecl', { name: 'j' }), body])
+    const fn = astNode('FunctionDecl', { name: 'main' }, [nested, astNode('Return')])
+
+    expect(astChildren(fn).map(astLabel)).toEqual(['Var j', 'Var i', 'Return'])
+    expect(astChildren(fn).some((node) => node.kind === 'Block')).toBe(false)
+  })
+
+  it('counts and measures the tree it draws, not the tree it was sent', () => {
+    const ast = loadFixture('loops').response.ast as AstNode
+    const shown = astNodes(ast)
+
+    // Fewer than the payload's node count, because the blocks are gone; deeper than one, because
+    // the program has loops.
+    expect(shown.length).toBeLessThan(countAstNodes(ast))
+    expect(astDepth(ast)).toBeGreaterThan(2)
+    expect(astDepth(ast)).toBeLessThanOrEqual(maxAstDepth(ast))
+    expect(shown[0]?.kind).toBe('Program')
+  })
+
+  it('drops the lexeme from the inspector, which is the label again', () => {
+    const literal = astNode('IntLiteral', { value: 0, lexeme: '0' })
+    expect(attributeRows(literal)).toEqual([{ key: 'value', value: '0' }])
+  })
+
+  it('keeps every other attribute, including an array one', () => {
+    const scanf = astNode('Scanf', { format: '%d %d', arguments: ['a', 'b'] })
+    expect(attributeRows(scanf)).toEqual([
+      { key: 'format', value: '%d %d' },
+      { key: 'arguments', value: '["a","b"]' },
+    ])
+  })
+
+  it('classifies every node so the graph can colour it', () => {
+    const ast = loadFixture('mixed_types').response.ast as AstNode
+    for (const node of astNodes(ast)) {
+      expect(classifyNode(node), node.kind).toBeTypeOf('string')
+    }
+  })
+})
+
+describe('AST tree layout', () => {
+  const ast = loadFixture('loops').response.ast as AstNode
+
+  it('draws one node per shown node and one edge per parent-child link', () => {
+    const { nodes, edges } = layoutAst(ast, null)
+    const shown = astNodes(ast)
+
+    expect(nodes).toHaveLength(shown.length)
+    expect(new Set(nodes.map((node) => node.id))).toEqual(new Set(shown.map((node) => node.id)))
+    // A tree has exactly one edge fewer than it has nodes. Two edges between the same pair would
+    // mean the dagre graph and the drawn edges had drifted apart.
+    expect(edges).toHaveLength(shown.length - 1)
+  })
+
+  it('puts the root at the top and every child below its parent', () => {
+    const { nodes } = layoutAst(ast, null)
+    const byId = new Map(nodes.map((node) => [node.id, node]))
+
+    const root = byId.get(ast.id)
+    expect(root).toBeDefined()
+    for (const node of nodes) {
+      expect(Number.isFinite(node.position.x), node.id).toBe(true)
+      expect(Number.isFinite(node.position.y), node.id).toBe(true)
+    }
+    for (const child of astNodes(ast)) {
+      for (const grandchild of astChildren(child)) {
+        const from = byId.get(child.id)
+        const to = byId.get(grandchild.id)
+        if (from && to) {
+          expect(to.position.y, `${child.kind} -> ${grandchild.kind}`).toBeGreaterThan(from.position.y)
+        }
+      }
+    }
+    // `Program` owns everything, so nothing may sit above it.
+    for (const node of nodes) {
+      expect(node.position.y).toBeGreaterThanOrEqual(root!.position.y)
+    }
+  })
+
+  it('marks exactly the selected node', () => {
+    const target = astNodes(ast)[3]
+    expect(target).toBeDefined()
+    const { nodes } = layoutAst(ast, target!.id)
+    expect(nodes.filter((node) => node.selected).map((node) => node.id)).toEqual([target!.id])
+  })
+})
 
 describe('TAC rendering', () => {
   const program = loadFixture('loops').response.ir

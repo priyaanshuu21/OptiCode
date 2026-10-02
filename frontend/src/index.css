@@ -34,6 +34,35 @@
     fill: #121a30;
   }
 
+  /*
+   * The zoom controls, themed once for every graph in the app.
+   *
+   * React Flow ships a light default: `#fefefe` buttons with icons painted in `currentColor`,
+   * which resolves to this app's light body text. That is a white box with invisible icons, on a
+   * near-black canvas, and no amount of `bg-*` on the component fixes it — the white comes from
+   * the button, not the container around it.
+   *
+   * These are React Flow's own custom properties rather than `!important` overrides of the
+   * shipped rules, because the library reads them with a `var(…, <light default>)` fallback:
+   * setting a property here removes the fallback, so it wins no matter which order the two
+   * stylesheets end up in the bundle. A direct `fill` on the button would not have worked at
+   * all — the library sets `fill: currentColor` on the `svg` itself, one selector more
+   * specific, so `color` is the only lever that reaches the icon.
+   */
+  .react-flow__controls {
+    --xy-controls-button-background-color: #0f172a;
+    --xy-controls-button-background-color-hover: #1e293b;
+    --xy-controls-button-color: #94a3b8;
+    --xy-controls-button-color-hover: #f8fafc;
+    --xy-controls-button-border-color: #334155;
+    --xy-controls-box-shadow: 0 1px 2px rgb(0 0 0 / 40%);
+    background-color: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 0.375rem;
+    /* Clips the buttons to the rounded corners instead of letting the last one square them off. */
+    overflow: hidden;
+  }
+
   .edge-loop {
     filter: drop-shadow(0 0 4px rgb(245 158 11 / 40%));
   }

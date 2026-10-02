@@ -109,7 +109,10 @@ export function BlockGraph({
       className="bg-surface-sunken"
     >
       <Background color="#243050" gap={18} size={1} />
-      <Controls showInteractive={false} className="!bg-surface-raised !border-edge" />
+      {/* No colour overrides here: `.react-flow__controls` in `index.css` themes the zoom
+          buttons for every graph, and the library's light default cannot be overridden by a
+          class on the container anyway. */}
+      <Controls showInteractive={false} />
     </ReactFlow>
   )
 }
