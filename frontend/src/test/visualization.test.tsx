@@ -6,7 +6,7 @@ import { CfgView } from '@/views/CfgView'
 import { DataFlowView } from '@/views/DataFlowView'
 import { FindingsView } from '@/views/FindingsView'
 import { OptimizationView } from '@/views/OptimizationView'
-import { optimizationOf, stageSkipped } from '@/api/client'
+import { codegenOf, optimizationOf, stageSkipped } from '@/api/client'
 import { useCompilerStore } from '@/store/compiler'
 import { loadFixture, type FixtureName } from './fixtures'
 
@@ -392,5 +392,47 @@ describe('optimizer view', () => {
     expect(report?.ir.text).not.toBe(response.ir?.text)
     expect(screen.getByText('as written')).toBeInTheDocument()
     expect(screen.getByText('after the optimizer')).toBeInTheDocument()
+  })
+
+  it('offers the apply button while codegen still has a rewrite to hand over', async () => {
+    // The counterpart to the settled-state test below: without it, a view that always showed the
+    // fully-optimized card would pass everything above while being wrong on every real program.
+    seed('folded')
+    render(<OptimizationView />)
+    await userEvent.click(screen.getByRole('button', { name: 'diff' }))
+
+    expect(screen.getByRole('button', { name: 'Apply to Editor' })).toBeInTheDocument()
+    expect(screen.queryByText('Code is Fully Optimized')).not.toBeInTheDocument()
+  })
+
+  it('reports the source as fully optimized once codegen has nothing left to change', async () => {
+    // Every recorded fixture is a first pass, so all of them have a rewrite to offer. The settled
+    // state is the same program one compile later — which is the point of applying — and no
+    // fixture captures it, so it is built here from `folded` by flipping codegen's own verdict
+    // and moving the editor to the source it would have rewritten.
+    const fixture = loadFixture('folded')
+    const codegen = codegenOf(fixture.response)!
+    useCompilerStore.setState({
+      response: { ...fixture.response, codegen: { ...codegen, applied: false } },
+      source: codegen.source,
+      status: 'ready',
+    })
+    render(<OptimizationView />)
+    await userEvent.click(screen.getByRole('button', { name: 'diff' }))
+
+    expect(screen.getByText('Code is Fully Optimized')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'The active source code already contains all applied optimizations. No further passes needed.',
+      ),
+    ).toBeInTheDocument()
+
+    // The diff is the TAC before/after, and it can still be non-empty here: the optimizer folds
+    // temporaries the source has no way to express. Showing it under a "no further passes needed"
+    // banner would read as outstanding work that the banner just denied.
+    expect(screen.queryByText('as written')).not.toBeInTheDocument()
+    expect(screen.queryByText('after the optimizer')).not.toBeInTheDocument()
+    // Nothing left to hand over, so nothing to offer.
+    expect(screen.queryByRole('button', { name: 'Apply to Editor' })).not.toBeInTheDocument()
   })
 })

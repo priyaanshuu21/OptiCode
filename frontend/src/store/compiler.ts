@@ -21,7 +21,9 @@ import type {
  * switching tabs should show the same block's facts, not reset to the entry.
  *
  * Compilation is a request/response cycle with a debounce, and the debounce lives here rather
- * than in the editor component so that switching tabs does not restart it.
+ * than in the editor component so that switching tabs does not restart it. The one place the
+ * debounce is skipped is applying the optimizer's codegen output, which replaces the program
+ * outright rather than adjusting it a character at a time — see `applyOptimizedSource`.
  */
 
 const COMPILE_DEBOUNCE_MS = 350
@@ -134,6 +136,7 @@ interface CompilerState {
   loadedExample: string | null
 
   setSource: (source: string) => void
+  applyOptimizedSource: (source: string) => void
   setStdin: (stdin: string) => void
   setMode: (mode: 'analyze' | 'optimize') => void
   setActiveStage: (stage: StageId) => void
@@ -167,6 +170,30 @@ export const useCompilerStore = create<CompilerState>((set, get) => ({
   setSource: (source) => {
     set({ source })
     schedule(set, get)
+  },
+
+  // Applying codegen output is a compile, not a keystroke. Routed through `setSource` it would
+  // wait out the debounce and keep the pre-apply response on screen for the whole 350ms, so the
+  // badges, the diff and the Apply button would all keep describing the source the editor no
+  // longer holds. The result is genuinely a *different program*, so the stale report is cleared
+  // rather than dimmed, and the request starts now instead of after a delay nobody asked for.
+  applyOptimizedSource: (source) => {
+    // Cancel any debounced compile still pending from typing, or its timer fires after this one
+    // and recompiles a source the user has since moved on from.
+    cancelPending()
+    // Invalidate whatever compile is in flight: its response describes the pre-apply source.
+    generation += 1
+    // One atomic write. Splitting the source from the invalidations would let a render land
+    // between them, showing the new text against the old report.
+    set({
+      source,
+      response: null,
+      selection: null,
+      selectedBlock: null,
+      status: 'compiling',
+      error: null,
+    })
+    void get().run()
   },
 
   // Deliberately not a recompile trigger. stdin only matters to the interpreter, which runs
@@ -278,4 +305,12 @@ function schedule(
     pending = undefined
     void get().run()
   }, COMPILE_DEBOUNCE_MS)
+}
+
+/** Drop the pending debounce, if any, so its timer cannot fire later. */
+function cancelPending(): void {
+  if (pending !== undefined) {
+    clearTimeout(pending)
+    pending = undefined
+  }
 }

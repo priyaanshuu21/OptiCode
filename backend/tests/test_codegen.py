@@ -364,7 +364,7 @@ def test_a_value_proved_only_after_control_flow_was_flattened_is_folded():
     assert result.applied and result.verified, result.reason
     _, ir = build(source)
     assert output_of(ir).strip() == "2"
-    assert "printf(\"%d\\n\", 2);" in result.source
+    assert 'printf("%d\\n", 2);' in result.source
     assert "c = c + 1;" not in result.source
 
 
@@ -373,8 +373,8 @@ def test_a_value_proved_only_after_control_flow_was_flattened_is_folded():
 
 def test_the_self_check_rejects_a_rewrite_that_changes_behaviour():
     """The guard is the whole reason this stage is safe, so it gets tested against a real bug."""
-    _, ir = build("int main() { printf(\"hi\\n\"); return 0; }\n")
-    check = self_check("int main() { printf(\"bye\\n\"); return 0; }\n", ir)
+    _, ir = build('int main() { printf("hi\\n"); return 0; }\n')
+    check = self_check('int main() { printf("bye\\n"); return 0; }\n', ir)
     assert not check.ok
     assert "differs" in check.reason or "differs" in check.describe()
 
@@ -496,9 +496,10 @@ def test_apply_plan_reproduces_the_generated_source():
     result = optimize(ir)
     plan = plan_edits(program, result)
     assert not plan.empty
-    assert unparse(apply_plan(program, plan)) == generate_optimized_source(
-        program, result, original_source=source
-    ).source
+    assert (
+        unparse(apply_plan(program, plan))
+        == generate_optimized_source(program, result, original_source=source).source
+    )
 
 
 def test_block_unwrapping_only_happens_where_braces_are_not_required():
@@ -607,9 +608,7 @@ def test_a_dropped_statement_is_never_reported_as_folded_too():
     )
     removed = {c.node_id for c in result.changes if c.kind is ChangeKind.STATEMENT_REMOVED}
     folded_inside = [
-        c
-        for c in result.changes
-        if c.kind is ChangeKind.EXPRESSION_FOLDED and c.node_id in removed
+        c for c in result.changes if c.kind is ChangeKind.EXPRESSION_FOLDED and c.node_id in removed
     ]
     assert not folded_inside
 
@@ -685,7 +684,7 @@ def test_if_statements_are_only_replaced_not_spliced_when_the_arm_needs_braces()
 """
     result = regenerate(source)
     assert result.applied and result.verified, result.reason
-    assert "printf(\"%d\\n\", 3);" in result.source
+    assert 'printf("%d\\n", 3);' in result.source
     assert "int inner = 3;" not in result.source
 
 
@@ -832,3 +831,182 @@ def _statements_of(body: Stmt) -> list[Stmt]:
     if isinstance(body, Block):
         return list(body.statements)
     return [body]
+
+
+# ------------------------------------------------- invariant: the pipeline converges
+
+
+def _residual(source: str) -> dict[str, object]:
+    """Compile ``source``, apply whatever codegen offers, and compile that again.
+
+    This is what the frontend's "Apply to Editor" does, in miniature, so it is the only way to
+    test the property the button actually promises: that applying the generated source leaves a
+    program the optimizer has no further *source-level* work on. Codegen being idempotent is a
+    different and much weaker claim — it only says regenerating an already-generated file changes
+    nothing, which stays true while the pipeline still finds work the source cannot express.
+    """
+    first = compile_source(source, mode=CompileMode.OPTIMIZE).to_dict()
+    generated = (first.get("codegen") or {}).get("source")
+    assert generated, (first.get("codegen") or {}).get("reason")
+    return compile_source(generated, mode=CompileMode.OPTIMIZE).to_dict()
+
+
+@pytest.mark.parametrize("filename", sorted(p.name for p in EXAMPLES.glob("*.c")))
+def test_applying_the_generated_source_leaves_nothing_left_to_apply(filename: str):
+    """One apply must reach the fixed point, or the button is a treadmill.
+
+    Every example that has a rewrite to offer must be exhausted by a single round of
+    generate-then-recompile. When this fails, the optimizer on the recompiled source still
+    reports removals that codegen has no way to write back into the file, so the user applies,
+    recompiles, and is offered the same work again with a badge that never clears.
+    """
+    source = (EXAMPLES / filename).read_text(encoding="utf-8")
+    if not (compile_source(source, mode=CompileMode.OPTIMIZE).to_dict()["codegen"] or {}).get(
+        "applied"
+    ):
+        pytest.skip("this example has no source-level rewrite to offer in the first place")
+
+    second = _residual(source)
+    assert not (second["codegen"] or {})["applied"], (
+        f"a second apply is still possible after one apply: {(second['codegen'] or {})['reason']}"
+    )
+
+
+def test_a_declaration_is_dropped_despite_another_function_sharing_its_name():
+    """References are counted per function, because MiniC scope is per function.
+
+    ``main``'s ``n`` is dead once the argument is folded to a literal, but ``sum_while`` and
+    ``sum_for`` both declare a parameter called ``n``. Collected program-wide, those parameters
+    pinned the dead declaration forever, so the store initializing it was still removable on the
+    next run and the plan came out identical every time.
+    """
+    result = regenerate(
+        """int sum_while(int n) {
+    int total = 0;
+    int i = 1;
+    while (i <= n) {
+        total = total + i;
+        i = i + 1;
+    }
+    return total;
+}
+
+int sum_for(int n) {
+    int total = 0;
+    for (int i = 1; i <= n; i = i + 1) {
+        total = total + i;
+    }
+    return total;
+}
+
+int main() {
+    int n = 10;
+    printf("%d\\n", sum_while(n));
+    printf("%d\\n", sum_for(n));
+    return 0;
+}
+"""
+    )
+    assert result.applied and result.verified, result.reason
+    assert "int n = 10;" not in result.source
+    assert "sum_while(10)" in result.source
+    # The helpers keep their own parameters, which is the point.
+    assert "int sum_while(int n)" in result.source
+    assert "int sum_for(int n)" in result.source
+
+
+def test_a_short_circuit_expression_folds_to_the_value_it_always_has():
+    """``&&`` and ``||`` lower to a branch sequence, so the fold has to be read off the return.
+
+    The expression owns no computing instruction, which means the planner has nothing to claim
+    and ``return 1 && 0;`` used to survive every run — along with the analysis findings that
+    correctly report its condition as always false. The instruction that carries the proof is
+    the ``return`` that consumed the short-circuit temp, which is why ``return`` counts as a
+    substitutable opcode.
+    """
+    result = regenerate(
+        """int logic() {
+    return 1 && 0;
+}
+
+int main() {
+    printf("%d\\n", logic());
+    return 0;
+}
+"""
+    )
+    assert result.applied and result.verified, result.reason
+    assert "1 && 0" not in result.source
+    assert "return 0;" in result.source
+    assert [c.kind for c in result.changes] == [ChangeKind.EXPRESSION_FOLDED]
+
+
+def test_a_declaration_that_is_still_read_loses_its_initializer_instead_of_its_name():
+    """A dead first store does not require an undeclared variable to express.
+
+    ``used`` is overwritten on every path before it is read, so the store that initializes it is
+    dead — but the name is still read at the ``return``, and dropping the whole declaration would
+    leave a program that does not compile. ``int used;`` is the same program with that one store
+    gone, and without it the rewrite came out identical on every run.
+    """
+    result = regenerate(
+        """int branchy(int flag) {
+    int used = 0;
+    if (flag) {
+        used = 1;
+    } else {
+        used = 2;
+    }
+    return used;
+}
+
+int main() {
+    printf("%d\\n", branchy(1));
+    return 0;
+}
+"""
+    )
+    assert result.applied and result.verified, result.reason
+    assert "int used;" in result.source
+    assert "int used = 0;" not in result.source
+    assert [c.kind for c in result.changes] == [ChangeKind.INITIALIZER_REMOVED]
+
+
+def test_a_declaration_whose_initializer_calls_something_is_never_detached():
+    """Stripping the initializer would delete the call with it, so the rewrite is refused.
+
+    No pass deletes a call today, so nothing reaches this guard yet. It is the one edit here that
+    would change what a program *does* rather than what it computes, which is why it is refused
+    outright instead of left to turn out harmless by accident.
+    """
+    program, ir = build(
+        """int get() {
+    return 7;
+}
+
+int main() {
+    int value = get();
+    printf("done\\n");
+    return 0;
+}
+"""
+    )
+    assert not plan_edits(program, optimize(ir)).detach
+
+
+def test_an_unreachable_return_is_deleted_because_it_is_a_line_of_the_file():
+    """The optimizer proved the block unreachable; the statement was still sitting there."""
+    result = regenerate(
+        """int f(int x) {
+    return x + 1;
+    return x - 1;
+}
+
+int main() {
+    printf("%d\\n", f(1));
+    return 0;
+}
+"""
+    )
+    assert result.applied and result.verified, result.reason
+    assert "return x - 1;" not in result.source

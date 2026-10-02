@@ -19,6 +19,11 @@ import { Count, EmptyState, Panel, severityDot } from '@/components/ui'
  * browser would mean a second renderer that eventually disagrees with the first about where the
  * instruction ids go, and a diff keyed on ids is only meaningful if both sides come from the
  * same place.
+ *
+ * Applying that diff's source output moves the goalposts for every other panel, so the apply
+ * itself lives in the store: it invalidates the current response and recompiles, because a
+ * badge that still counts the pre-apply program is a badge about a file the editor no longer has.
+ * See `applyOptimizedSource`.
  */
 
 type Section = 'report' | 'events' | 'diff'
@@ -93,6 +98,37 @@ function GapList({ gaps }: { gaps: SkippedGap[] }): JSX.Element {
   )
 }
 
+function FullyOptimized(): JSX.Element {
+  return (
+    <div className="flex items-start gap-3 p-6">
+      {/*
+       * An icon rather than a coloured border: the badge is the only green thing on this panel,
+       * so it reads as a verdict instead of as another heading. It is decorative — the heading
+       * beside it carries the claim, and a screen reader should not hear the shape twice.
+       */}
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 20 20"
+        className="mt-0.5 h-5 w-5 shrink-0 text-severity-success"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="m4 10.5 4 4 8-9" />
+      </svg>
+      <div className="min-w-0">
+        <h3 className="text-sm font-medium text-severity-success">Code is Fully Optimized</h3>
+        <p className="mt-1 text-2xs leading-relaxed text-slate-400">
+          The active source code already contains all applied optimizations. No further passes
+          needed.
+        </p>
+      </div>
+    </div>
+  )
+}
+
 function EventList({ events }: { events: OptimizationEvent[] }): JSX.Element {
   const select = useCompilerStore((state) => state.select)
   if (events.length === 0) {
@@ -147,8 +183,7 @@ export function OptimizationView(): JSX.Element {
   const setMode = useCompilerStore((state) => state.setMode)
   const run = useCompilerStore((state) => state.run)
   const status = useCompilerStore((state) => state.status)
-  const setSource = useCompilerStore((state) => state.setSource)
-  const select = useCompilerStore((state) => state.select)
+  const applyOptimizedSource = useCompilerStore((state) => state.applyOptimizedSource)
   const [section, setSection] = useState<Section>('report')
 
   const report = useMemo(() => (response ? optimizationOf(response) : null), [response])
@@ -194,6 +229,7 @@ export function OptimizationView(): JSX.Element {
   const verification = report.verification
   const before = original
   const after: IrProgram = report.ir
+  const settled = codegen != null && !codegen.applied
 
   return (
     <Panel
@@ -355,28 +391,41 @@ export function OptimizationView(): JSX.Element {
         </div>
       ) : (
         <div>
-          {codegen?.source ? (
-            <div className="flex items-center justify-between gap-3 border-b border-edge px-4 py-2">
-              <p className="font-mono text-2xs text-slate-500">
-                {codegen.applied
-                  ? 'codegen rewrote the source — apply it to keep editing from the optimized program'
-                  : 'the optimized source is ready to edit from'}
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  if (codegen?.source != null) {
-                    setSource(codegen.source)
-                    select(null)
-                  }
-                }}
-                className="shrink-0 rounded border border-edge-strong px-3 py-1 font-mono text-2xs text-slate-100 hover:bg-surface-overlay"
-              >
-                Apply to Editor
-              </button>
-            </div>
-          ) : null}
-          <Diff before={before?.text ?? ''} after={after.text} />
+          {/*
+           * `codegen.applied === false` is the backend's own statement that its source generator
+           * had nothing to change. That is a stronger and more useful claim than
+           * `optimization.changed === false`, which also goes false for programs whose source is
+           * already optimal while the TAC still holds temporaries the optimizer would fold — work
+           * with no source form to show. So the terminal state keys on the source, and the card
+           * replaces the diff rather than sitting above it: showing a before/after beside "no
+           * further passes needed" invites the reader to treat a TAC-only artifact as unfinished.
+           */}
+          {settled ? (
+            <FullyOptimized />
+          ) : (
+            <>
+              {codegen?.source ? (
+                <div className="flex items-center justify-between gap-3 border-b border-edge px-4 py-2">
+                  <p className="font-mono text-2xs text-slate-500">
+                    codegen rewrote the source — apply it to keep editing from the optimized
+                    program
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (codegen?.source != null) {
+                        applyOptimizedSource(codegen.source)
+                      }
+                    }}
+                    className="shrink-0 rounded border border-edge-strong px-3 py-1 font-mono text-2xs text-slate-100 hover:bg-surface-overlay"
+                  >
+                    Apply to Editor
+                  </button>
+                </div>
+              ) : null}
+              <Diff before={before?.text ?? ''} after={after.text} />
+            </>
+          )}
         </div>
       )}
     </Panel>

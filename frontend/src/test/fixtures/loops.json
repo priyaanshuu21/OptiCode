@@ -2317,10 +2317,29 @@
       }
     },
     "codegen": {
-      "annotated_source": "int sum_while(int n) {\n    int total = 0;\n    int i = 1;\n    while (i <= n) {\n        total = total + i;\n        i = i + 1;\n    }\n    return total;\n}\n\nint sum_for(int n) {\n    int total = 0;\n    for (int i = 1; i <= n; i = i + 1) {\n        total = total + i;\n    }\n    return total;\n}\n\nint main() {\n    int n = 10;\n    printf(\"while: %d\\n\", sum_while(10));\n    printf(\"for:   %d\\n\", sum_for(10));\n    return 0;\n}\n",
+      "annotated_source": "int sum_while(int n) {\n    int total = 0;\n    int i = 1;\n    while (i <= n) {\n        total = total + i;\n        i = i + 1;\n    }\n    return total;\n}\n\nint sum_for(int n) {\n    int total = 0;\n    for (int i = 1; i <= n; i = i + 1) {\n        total = total + i;\n    }\n    return total;\n}\n\nint main() {\n    /* removed: int n = 10; */\n    printf(\"while: %d\\n\", sum_while(10));\n    printf(\"for:   %d\\n\", sum_for(10));\n    return 0;\n}\n",
       "applied": true,
       "changes": {
         "changes": [
+          {
+            "before": "int n = 10;",
+            "function": "main",
+            "instruction_ids": [
+              "i1"
+            ],
+            "kind": "statement_removed",
+            "node_id": "n48",
+            "passes": [
+              "dead-assignments"
+            ],
+            "reason": "nothing reads `n_3` after this point",
+            "span": {
+              "end_col": 15,
+              "end_line": 22,
+              "start_col": 5,
+              "start_line": 22
+            }
+          },
           {
             "after": "10",
             "before": "n",
@@ -2365,8 +2384,9 @@
         "counts": {
           "branches_resolved": 0,
           "expressions_folded": 2,
-          "statements_removed": 0,
-          "total": 2
+          "initializers_removed": 0,
+          "statements_removed": 1,
+          "total": 3
         }
       },
       "reason": "the generated source re-compiled and behaved identically",
@@ -2411,7 +2431,7 @@
           "verified": true
         }
       },
-      "source": "int sum_while(int n) {\n    int total = 0;\n    int i = 1;\n    while (i <= n) {\n        total = total + i;\n        i = i + 1;\n    }\n    return total;\n}\n\nint sum_for(int n) {\n    int total = 0;\n    for (int i = 1; i <= n; i = i + 1) {\n        total = total + i;\n    }\n    return total;\n}\n\nint main() {\n    int n = 10;\n    printf(\"while: %d\\n\", sum_while(10));\n    printf(\"for:   %d\\n\", sum_for(10));\n    return 0;\n}\n",
+      "source": "int sum_while(int n) {\n    int total = 0;\n    int i = 1;\n    while (i <= n) {\n        total = total + i;\n        i = i + 1;\n    }\n    return total;\n}\n\nint sum_for(int n) {\n    int total = 0;\n    for (int i = 1; i <= n; i = i + 1) {\n        total = total + i;\n    }\n    return total;\n}\n\nint main() {\n    printf(\"while: %d\\n\", sum_while(10));\n    printf(\"for:   %d\\n\", sum_for(10));\n    return 0;\n}\n",
       "verified": true
     },
     "dataflow": {
@@ -4772,7 +4792,7 @@
     "diagnostics": [
       {
         "code": "I-CGN-001",
-        "message": "the source generator rewrote 2 part(s) of the program",
+        "message": "the source generator rewrote 3 part(s) of the program",
         "related": null,
         "severity": "info",
         "span": null,

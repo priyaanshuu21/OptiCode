@@ -50,6 +50,7 @@ from ..parser.ast import (
     Node,
     Printf,
     Program,
+    Return,
     Scanf,
     Stmt,
     VarDecl,
@@ -74,13 +75,22 @@ __all__ = [
 #: happen to share a name.
 Key = tuple[str, str]
 
-#: Statements whose removal cannot change control flow, because they have none of their own.
-#: A ``return`` or a loop header may be provably dead, but deleting one changes the shape of
-#: the surrounding code, and a shorter file is not worth deleting the statement that made a
-#: block a block. ``printf`` and ``scanf`` are in the list despite their side effects: those
-#: side effects are what the instruction does, and the statement is only removable when the
-#: optimizer deleted that instruction, which it does for input and output nobody executes.
-SIMPLE_STATEMENTS = (Assign, VarDecl, ExprStmt, Printf, Scanf)
+#: Statements the planner may delete outright when every instruction they produced is gone.
+#: ``printf`` and ``scanf`` are in the list despite their side effects: those side effects are
+#: what the instruction does, and the statement is only removable when the optimizer deleted
+#: that instruction, which it does for input and output nobody executes.
+#:
+#: ``return`` used to be excluded, on the grounds that deleting one changes the shape of the
+#: surrounding block and a shorter file is not worth it. That is the wrong trade here, because
+#: the *only* way a ``return`` reaches this list is when the optimizer removed every instruction
+#: it produced — which for a ``return`` means its block was proved unreachable. Leaving the
+#: statement behind meant ``int f(int x) { return x + 1; return dead; }`` kept a line of code
+#: that no execution can reach, the source generator had nothing further to offer, and applying
+#: the result and compiling it again found the same dead ``return`` waiting. That is a real
+#: line of the user's file, and deleting it is what a source-to-source optimizer is for.
+#: A loop header stays out: ``while (1)`` is how the user wrote an endless loop, and an emptied
+#: one is not a shorter program.
+SIMPLE_STATEMENTS = (Assign, VarDecl, ExprStmt, Printf, Return, Scanf)
 
 #: Opcodes that branch on a condition. Only these carry a decidable truth value. There is
 #: only one branch opcode, ``if_false``: a false condition jumps to the target and a true
@@ -98,7 +108,17 @@ _COMPUTING_OPCODES = frozenset({Opcode.BINARY, Opcode.UNARY})
 #: different instruction rather than the same one with a nicer operand. The operand-count
 #: check below is the second half of this guard, since even a ``call`` can come back with a
 #: different number of arguments.
-_SUBSTITUTABLE_OPCODES = frozenset({Opcode.BINARY, Opcode.UNARY, Opcode.CALL, Opcode.PRINT})
+#:
+#: ``return`` belongs here for the same reason arithmetic does, and leaving it out is what
+#: stopped ``return 1 && 0;`` from ever converging. ``&&`` and ``||`` lower to a branch
+#: sequence rather than to one computing instruction, so the expression has no instruction of
+#: its own for the fold planner to claim. What survives is the ``return`` that consumed the
+#: short-circuit temp, and its operand slot is exactly the proof — the same instruction, the
+#: same single operand, now holding the literal the verified program returns. The origin id on
+#: that slot is the whole expression, so replacing it is the whole fold.
+_SUBSTITUTABLE_OPCODES = frozenset(
+    {Opcode.BINARY, Opcode.UNARY, Opcode.CALL, Opcode.PRINT, Opcode.RETURN}
+)
 
 #: Arms that can be spliced into a statement list without needing braces of their own.
 _BLOCK_ARMS = (Block, If)
@@ -132,6 +152,8 @@ class EditPlan:
 
     #: Statement node ids to delete outright.
     drop: frozenset[str] = frozenset()
+    #: Declaration node ids to keep but strip the initializer from.
+    detach: frozenset[str] = frozenset()
     #: Node id to the literal that replaces it.
     replace: Mapping[str, Expr] = field(default_factory=dict)
     #: ``if`` node id to the arm that survives, or to ``None`` when the ``if`` goes away.
@@ -140,7 +162,7 @@ class EditPlan:
 
     @property
     def empty(self) -> bool:
-        return not (self.drop or self.replace or self.resolve)
+        return not (self.drop or self.detach or self.replace or self.resolve)
 
 
 def plan_edits(ast: Program, result: OptimizationResult) -> EditPlan:
@@ -157,8 +179,23 @@ def plan_edits(ast: Program, result: OptimizationResult) -> EditPlan:
     actually rewrote every one of those reads. When one is missed, the declaration has to stay,
     and staying brings back references that need folding, which needs another pass over the
     removals. The loop settles that: build the plan, see which names the rewritten tree still
-    uses, un-drop the declarations that declare them, repeat. Each round removes at least one
-    declaration, so it terminates, and it is bounded anyway.
+    reads *inside the function that declares them*, un-drop the declarations that are, repeat.
+    Each round moves at least one declaration out of ``drop``, so it terminates, and it is
+    bounded anyway.
+
+    The per-function scoping is what lets the loop terminate in practice rather than in theory.
+    Compared program-wide, a declaration is almost never droppable: MiniC functions share
+    parameter names freely, and one ``helper(int n)`` anywhere in the file would pin a dead
+    ``int n`` in ``main`` forever. The result was a plan that rewrote the file the same way on
+    every run, so applying it and recompiling found the same removable work again and the
+    optimizer never reported a clean run.
+
+    A declaration that cannot be dropped because its name is still read does not have to keep
+    its initializer. ``int used = 0;`` in a function that overwrites ``used`` on every path and
+    then returns it has a provably dead first store, and ``int used;`` is the same program with
+    that store gone — so the declaration moves to :attr:`EditPlan.detach` instead of surviving
+    whole. Without that, the store stayed in the source, the optimizer removed it again on the
+    next run, and the file never reached a fixed point either.
     """
     original, optimized = result.original, result.optimized
     owners = _instructions(original)
@@ -183,46 +220,101 @@ def plan_edits(ast: Program, result: OptimizationResult) -> EditPlan:
         statements=statements,
     )
     drop = _removable_statements(context)
+    detach: set[str] = set()
+    enclosing = _declaring_functions(ast)
 
-    plan = _build_plan(context, drop)
+    plan = _build_plan(context, drop, detach)
     for _round in range(_MAX_PLANNING_ROUNDS):
-        referenced = _referenced_names(context, plan)
+        reads = _read_names_by_function(context, plan)
         revive = {
             node_id
             for node_id in drop
-            if isinstance(nodes.get(node_id), VarDecl) and nodes[node_id].name in referenced
+            if isinstance(nodes.get(node_id), VarDecl)
+            and nodes[node_id].name in reads.get(enclosing.get(node_id, ""), ())
         }
         if not revive:
             return plan
+        detach |= {node_id for node_id in revive if _detachable(context, node_id)}
         drop -= revive
-        plan = _build_plan(context, drop)
+        plan = _build_plan(context, drop, detach)
     return plan
 
 
-def _build_plan(context: _PlanContext, drop: set[str]) -> EditPlan:
+def _build_plan(context: _PlanContext, drop: set[str], detach: set[str]) -> EditPlan:
     changes = ChangeMap()
     _plan_removals(context, drop, changes)
+    _plan_detachments(context, detach, changes)
     replace_map: dict[str, Expr] = {}
     _plan_folds(context, drop, replace_map, changes)
     resolve = _plan_branches(context, changes)
     return EditPlan(
         drop=frozenset(drop),
+        detach=frozenset(detach),
         replace=replace_map,
         resolve=resolve,
         changes=changes,
     )
 
 
-def _referenced_names(context: _PlanContext, plan: EditPlan) -> set[str]:
-    """Every identifier name still present after the plan is applied."""
+def _detachable(context: _PlanContext, node_id: str) -> bool:
+    """Whether this declaration can keep its name and lose its initializer.
+
+    Two things rule it out, and both are about the shape of MiniC rather than about safety.
+
+    * An initializer with side effects. ``int x = read();`` has to keep the call, because
+      deleting the store would delete the read with it. There is no pass that deletes such a
+      call, so this cannot arise today — but it is the one case where the rewrite would change
+      what the program does, so it is refused rather than assumed unreachable.
+    * A declaration that is not an ordinary statement. ``for (int i = 0; ...)`` holds its
+      declaration directly on the ``for``, and ``for (int i; ...)`` is not a declaration
+      anyone can write: the loop would have nothing to initialize.
+    """
+    node = context.nodes.get(node_id)
+    if not isinstance(node, VarDecl) or node.init is None:
+        return False
+    if any(isinstance(child, (CallExpr, Scanf)) for child in walk(node.init)):
+        return False
+    return isinstance(context.nodes.get(context.parents.get(node_id, "")), Block)
+
+
+def _declaring_functions(ast: Program) -> dict[str, str]:
+    """Every node id to the name of the function that encloses it.
+
+    MiniC has function-local scope and no globals — :class:`Program` holds nothing but
+    :class:`FunctionDecl` bodies — so a name declared in one function can never be read from
+    another. That is what makes this the right granularity for deciding whether a declaration is
+    still needed.
+    """
+    enclosing: dict[str, str] = {}
+    for function in walk(ast):
+        if not isinstance(function, FunctionDecl):
+            continue
+        for node in walk(function):
+            enclosing[node.id] = function.name
+    return enclosing
+
+
+def _read_names_by_function(context: _PlanContext, plan: EditPlan) -> dict[str, frozenset[str]]:
+    """Names still read inside each function after ``plan`` is applied, keyed by function name.
+
+    Scoping this to the enclosing function is not tidiness, it is the difference between a
+    planner that converges and one that never does. Collecting names program-wide means a dead
+    ``int n = 10;`` in ``main`` stays alive forever because some unrelated ``helper(int n)``
+    declares a parameter also called ``n`` — so the declaration survives, so the store
+    initializing it is still removable, so the next run finds the same work again. Keeping the
+    per-function names separate lets the genuinely dead declaration go.
+    """
     from .rewrite import rewrite_program
 
     rewritten = rewrite_program(context.ast, plan)
-    return {
-        node.name
-        for node in walk(rewritten.program)
-        if isinstance(node, Identifier) and node.name
-    }
+    reads: dict[str, frozenset[str]] = {}
+    for function in walk(rewritten.program):
+        if not isinstance(function, FunctionDecl) or function.body is None:
+            continue
+        reads[function.name] = frozenset(
+            node.name for node in walk(function.body) if isinstance(node, Identifier) and node.name
+        )
+    return reads
 
 
 # --------------------------------------------------------------------- indexing
@@ -316,7 +408,9 @@ def _attribution(events: Iterable[OptimizationEvent]) -> dict[Key, list[tuple[st
     out: dict[Key, list[tuple[str, str]]] = {}
     for event in events:
         for instruction_id in event.instruction_ids:
-            out.setdefault((event.function, instruction_id), []).append((event.pass_name, event.detail))
+            out.setdefault((event.function, instruction_id), []).append(
+                (event.pass_name, event.detail)
+            )
     return out
 
 
@@ -381,10 +475,13 @@ def _plan_removals(context: _PlanContext, drop: set[str], changes: ChangeMap) ->
         if statement is not None:
             owned.setdefault(statement, []).append(key)
 
-    for node_id in sorted(drop, key=lambda value: (
-        context.nodes[value].span.start_line,
-        context.nodes[value].span.start_col,
-    )):
+    for node_id in sorted(
+        drop,
+        key=lambda value: (
+            context.nodes[value].span.start_line,
+            context.nodes[value].span.start_col,
+        ),
+    ):
         node = context.nodes.get(node_id)
         if not isinstance(node, Stmt):
             continue
@@ -401,6 +498,50 @@ def _plan_removals(context: _PlanContext, drop: set[str], changes: ChangeMap) ->
                     "the optimizer removed every instruction this statement produced",
                 ),
                 before=unparse_node(node),
+                passes=_why(context.attribution, produced),
+                instruction_ids=tuple(sorted(key[1] for key in produced)),
+            )
+        )
+
+
+def _plan_detachments(context: _PlanContext, detach: set[str], changes: ChangeMap) -> None:
+    """Record a :class:`SourceChange` for every declaration that keeps its name but not its value.
+
+    The instruction the initializer produced is gone from the optimized program, which is the
+    whole justification: the optimizer proved that store was never read, so the variable's value
+    before its first real write was never observed. The declaration itself has to stay because
+    something still reads the name, and a reader of a name that is no longer declared is a
+    program that does not compile.
+    """
+    for node_id in sorted(
+        detach,
+        key=lambda value: (
+            context.nodes[value].span.start_line,
+            context.nodes[value].span.start_col,
+        ),
+    ):
+        node = context.nodes.get(node_id)
+        if not isinstance(node, VarDecl) or node.init is None:
+            continue
+        produced = [
+            key
+            for key, item in context.owners.items()
+            if context.statements.get(item.ast_node_id) == node_id
+        ]
+        changes.add(
+            SourceChange(
+                kind=ChangeKind.INITIALIZER_REMOVED,
+                node_id=node_id,
+                span=node.span,
+                function=produced[0][0] if produced else "",
+                reason=_explanation(
+                    context.attribution,
+                    produced,
+                    f"`{node.name}` is written before it is ever read, so the initial value "
+                    f"is never observed",
+                ),
+                before=unparse_node(node),
+                after=f"{node.type_name} {node.name};",
                 passes=_why(context.attribution, produced),
                 instruction_ids=tuple(sorted(key[1] for key in produced)),
             )

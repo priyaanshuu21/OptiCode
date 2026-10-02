@@ -9,6 +9,7 @@ import { DiagnosticsView } from '@/views/DiagnosticsView'
 import { astNodes } from '@/lib/ast'
 import { countAstNodes } from '@/lib/span'
 import { useCompilerStore } from '@/store/compiler'
+import { codegenOf } from '@/api/client'
 import type { AstNode } from '@/api/types'
 import { loadFixture, type FixtureName } from './fixtures'
 
@@ -215,5 +216,86 @@ describe('compile status', () => {
 
     render(<DiagnosticsView />)
     await waitFor(() => expect(screen.getByText(/stage skipped|Nothing to show yet/)).toBeInTheDocument())
+  })
+})
+
+describe('applying the optimizer output', () => {
+  beforeEach(() => {
+    reset()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('recompiles the applied source instead of leaving the pre-apply report on screen', async () => {
+    const fixture = loadFixture('folded')
+    const codegen = codegenOf(fixture.response)!
+    expect(codegen.applied).toBe(true)
+
+    // Deliberately held open. The state worth testing is the one between "the editor changed"
+    // and "the new report arrived" — exactly the window in which the previous implementation
+    // left the old response on screen, still counting and still diffing the source the editor
+    // no longer had.
+    const gate = new Promise<Response>(() => {})
+    const fetchMock = vi.fn(() => gate)
+    vi.stubGlobal('fetch', fetchMock)
+
+    useCompilerStore.setState({
+      response: fixture.response,
+      source: fixture.source,
+      status: 'ready',
+      error: null,
+      mode: 'optimize',
+      selection: { line: 1, endLine: 1, origin: 'test' },
+      selectedBlock: { function: 'main', block: 'B1' },
+    })
+
+    await act(async () => {
+      useCompilerStore.getState().applyOptimizedSource(codegen.source)
+    })
+
+    const mid = useCompilerStore.getState()
+    expect(mid.source).toBe(codegen.source)
+    // A stale response is not a harmless detail here: every badge, count and diff in the app is
+    // read off it, so keeping it would have the UI describing a program that no longer exists.
+    expect(mid.response).toBeNull()
+    expect(mid.selection).toBeNull()
+    expect(mid.selectedBlock).toBeNull()
+    expect(mid.status).toBe('compiling')
+
+    // Straight to the request, with the new source. A debounce would leave the pre-apply state
+    // on screen for another 350ms, which is the window this action exists to close.
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toContain('/api/compile')
+    expect(JSON.parse(init.body as string).source).toBe(codegen.source)
+  })
+
+  it('keeps a failing apply visible instead of leaving an empty editor', async () => {
+    const fixture = loadFixture('folded')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('Failed to fetch')
+      }),
+    )
+    useCompilerStore.setState({
+      response: fixture.response,
+      source: fixture.source,
+      status: 'ready',
+      mode: 'optimize',
+    })
+
+    await act(async () => {
+      useCompilerStore.getState().applyOptimizedSource(codegenOf(fixture.response)!.source)
+    })
+
+    // The source is already replaced, so swallowing the failure would leave an editor showing
+    // a program the app has no report for and no error either.
+    const { status, error, response } = useCompilerStore.getState()
+    expect(status).toBe('error')
+    expect(error).toMatch(/backend running/)
+    expect(response).toBeNull()
   })
 })

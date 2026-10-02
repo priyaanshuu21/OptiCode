@@ -4111,7 +4111,7 @@
       }
     },
     "codegen": {
-      "annotated_source": "int folded_add() {\n    return 14;\n}\n\nint folded_subtract() {\n    return 90;\n}\n\nint folded_divide() {\n    return 42;\n}\n\nint folded_modulo() {\n    return 2;\n}\n\nint folded_compare() {\n    return 1;\n}\n\nint folded_logic() {\n    return 1 && 0;\n}\n\nfloat folded_float() {\n    return 6.0;\n}\n\nfloat folded_float_mix() {\n    return 2.0;\n}\n\nint mixed_with_variable(int x) {\n    return 10 + x * 2;\n}\n\nint main() {\n    printf(\"2 + 3 * 4 = %d\\n\", folded_add());\n    printf(\"100 - 7 - 3 = %d\\n\", folded_subtract());\n    printf(\"84 / 2 = %d\\n\", folded_divide());\n    printf(\"17 %% 5 = %d\\n\", folded_modulo());\n    printf(\"3 * 7 > 20 = %d\\n\", folded_compare());\n    printf(\"1 && 0 = %d\\n\", folded_logic());\n    printf(\"1.5 * 4.0 = %f\\n\", folded_float());\n    printf(\"1.5 + 0.25 * 2.0 = %f\\n\", folded_float_mix());\n    printf(\"10 + x * 2 with x=5: %d\\n\", mixed_with_variable(5));\n    return 0;\n}\n",
+      "annotated_source": "int folded_add() {\n    return 14;\n}\n\nint folded_subtract() {\n    return 90;\n}\n\nint folded_divide() {\n    return 42;\n}\n\nint folded_modulo() {\n    return 2;\n}\n\nint folded_compare() {\n    return 1;\n}\n\nint folded_logic() {\n    return 0;\n}\n\nfloat folded_float() {\n    return 6.0;\n}\n\nfloat folded_float_mix() {\n    return 2.0;\n}\n\nint mixed_with_variable(int x) {\n    return 10 + x * 2;\n}\n\nint main() {\n    printf(\"2 + 3 * 4 = %d\\n\", folded_add());\n    printf(\"100 - 7 - 3 = %d\\n\", folded_subtract());\n    printf(\"84 / 2 = %d\\n\", folded_divide());\n    printf(\"17 %% 5 = %d\\n\", folded_modulo());\n    printf(\"3 * 7 > 20 = %d\\n\", folded_compare());\n    printf(\"1 && 0 = %d\\n\", folded_logic());\n    printf(\"1.5 * 4.0 = %f\\n\", folded_float());\n    printf(\"1.5 + 0.25 * 2.0 = %f\\n\", folded_float_mix());\n    printf(\"10 + x * 2 with x=5: %d\\n\", mixed_with_variable(5));\n    return 0;\n}\n",
       "applied": true,
       "changes": {
         "changes": [
@@ -4287,6 +4287,26 @@
             }
           },
           {
+            "after": "0",
+            "before": "1 && 0",
+            "function": "folded_logic",
+            "instruction_ids": [
+              "i8"
+            ],
+            "kind": "expression_folded",
+            "node_id": "n41",
+            "passes": [
+              "constant-propagation"
+            ],
+            "reason": "every path reaching this instruction proves the value",
+            "span": {
+              "end_col": 18,
+              "end_line": 29,
+              "start_col": 12,
+              "start_line": 29
+            }
+          },
+          {
             "after": "6.0",
             "before": "1.5 * 4.0",
             "function": "folded_float",
@@ -4353,9 +4373,10 @@
         ],
         "counts": {
           "branches_resolved": 0,
-          "expressions_folded": 11,
+          "expressions_folded": 12,
+          "initializers_removed": 0,
           "statements_removed": 0,
-          "total": 11
+          "total": 12
         }
       },
       "reason": "the generated source re-compiled and behaved identically",
@@ -4591,7 +4612,7 @@
           "verified": true
         }
       },
-      "source": "int folded_add() {\n    return 14;\n}\n\nint folded_subtract() {\n    return 90;\n}\n\nint folded_divide() {\n    return 42;\n}\n\nint folded_modulo() {\n    return 2;\n}\n\nint folded_compare() {\n    return 1;\n}\n\nint folded_logic() {\n    return 1 && 0;\n}\n\nfloat folded_float() {\n    return 6.0;\n}\n\nfloat folded_float_mix() {\n    return 2.0;\n}\n\nint mixed_with_variable(int x) {\n    return 10 + x * 2;\n}\n\nint main() {\n    printf(\"2 + 3 * 4 = %d\\n\", folded_add());\n    printf(\"100 - 7 - 3 = %d\\n\", folded_subtract());\n    printf(\"84 / 2 = %d\\n\", folded_divide());\n    printf(\"17 %% 5 = %d\\n\", folded_modulo());\n    printf(\"3 * 7 > 20 = %d\\n\", folded_compare());\n    printf(\"1 && 0 = %d\\n\", folded_logic());\n    printf(\"1.5 * 4.0 = %f\\n\", folded_float());\n    printf(\"1.5 + 0.25 * 2.0 = %f\\n\", folded_float_mix());\n    printf(\"10 + x * 2 with x=5: %d\\n\", mixed_with_variable(5));\n    return 0;\n}\n",
+      "source": "int folded_add() {\n    return 14;\n}\n\nint folded_subtract() {\n    return 90;\n}\n\nint folded_divide() {\n    return 42;\n}\n\nint folded_modulo() {\n    return 2;\n}\n\nint folded_compare() {\n    return 1;\n}\n\nint folded_logic() {\n    return 0;\n}\n\nfloat folded_float() {\n    return 6.0;\n}\n\nfloat folded_float_mix() {\n    return 2.0;\n}\n\nint mixed_with_variable(int x) {\n    return 10 + x * 2;\n}\n\nint main() {\n    printf(\"2 + 3 * 4 = %d\\n\", folded_add());\n    printf(\"100 - 7 - 3 = %d\\n\", folded_subtract());\n    printf(\"84 / 2 = %d\\n\", folded_divide());\n    printf(\"17 %% 5 = %d\\n\", folded_modulo());\n    printf(\"3 * 7 > 20 = %d\\n\", folded_compare());\n    printf(\"1 && 0 = %d\\n\", folded_logic());\n    printf(\"1.5 * 4.0 = %f\\n\", folded_float());\n    printf(\"1.5 + 0.25 * 2.0 = %f\\n\", folded_float_mix());\n    printf(\"10 + x * 2 with x=5: %d\\n\", mixed_with_variable(5));\n    return 0;\n}\n",
       "verified": true
     },
     "dataflow": {
@@ -7188,7 +7209,7 @@
       },
       {
         "code": "I-CGN-001",
-        "message": "the source generator rewrote 11 part(s) of the program",
+        "message": "the source generator rewrote 12 part(s) of the program",
         "related": null,
         "severity": "info",
         "span": null,

@@ -3401,7 +3401,7 @@
       }
     },
     "codegen": {
-      "annotated_source": "int overwritten_before_read() {\n    /* removed: int a = 1; */\n    /* removed: a = 2; */\n    /* removed: a = 3; */\n    return 3;\n}\n\nint dead_in_branch(int flag) {\n    int used = 0;\n    if (flag) {\n        /* removed: int only_here = 10; */\n        used = 1;\n    } else {\n        used = 2;\n    }\n    return used;\n}\n\nint dead_loop_value(int n) {\n    int total = 0;\n    for (int i = 0; i < n; i = i + 1) {\n        /* removed: int scratch = i * 2; */\n        total = total + i;\n    }\n    return total;\n}\n\nint self_assignment(int x) {\n    int same = x;\n    same = same;\n    return same;\n}\n\nint main() {\n    printf(\"overwritten_before_read() = %d\\n\", overwritten_before_read());\n    printf(\"dead_in_branch(1) = %d\\n\", dead_in_branch(1));\n    printf(\"dead_in_branch(0) = %d\\n\", dead_in_branch(0));\n    printf(\"dead_loop_value(5) = %d\\n\", dead_loop_value(5));\n    printf(\"self_assignment(7) = %d\\n\", self_assignment(7));\n    return 0;\n}\n",
+      "annotated_source": "int overwritten_before_read() {\n    /* removed: int a = 1; */\n    /* removed: a = 2; */\n    /* removed: a = 3; */\n    return 3;\n}\n\nint dead_in_branch(int flag) {\n    int used;\n    if (flag) {\n        /* removed: int only_here = 10; */\n        used = 1;\n    } else {\n        used = 2;\n    }\n    return used;\n}\n\nint dead_loop_value(int n) {\n    int total = 0;\n    for (int i = 0; i < n; i = i + 1) {\n        /* removed: int scratch = i * 2; */\n        total = total + i;\n    }\n    return total;\n}\n\nint self_assignment(int x) {\n    int same = x;\n    same = same;\n    return same;\n}\n\nint main() {\n    printf(\"overwritten_before_read() = %d\\n\", overwritten_before_read());\n    printf(\"dead_in_branch(1) = %d\\n\", dead_in_branch(1));\n    printf(\"dead_in_branch(0) = %d\\n\", dead_in_branch(0));\n    printf(\"dead_loop_value(5) = %d\\n\", dead_loop_value(5));\n    printf(\"self_assignment(7) = %d\\n\", self_assignment(7));\n    return 0;\n}\n",
       "applied": true,
       "changes": {
         "changes": [
@@ -3483,6 +3483,26 @@
             }
           },
           {
+            "after": "int used;",
+            "before": "int used = 0;",
+            "function": "dead_in_branch",
+            "instruction_ids": [
+              "i1"
+            ],
+            "kind": "initializer_removed",
+            "node_id": "n15",
+            "passes": [
+              "dead-assignments"
+            ],
+            "reason": "nothing reads `used` after this point",
+            "span": {
+              "end_col": 17,
+              "end_line": 15,
+              "start_col": 5,
+              "start_line": 15
+            }
+          },
+          {
             "before": "int only_here = 10;",
             "function": "dead_in_branch",
             "instruction_ids": [
@@ -3525,8 +3545,9 @@
         "counts": {
           "branches_resolved": 0,
           "expressions_folded": 1,
+          "initializers_removed": 1,
           "statements_removed": 5,
-          "total": 6
+          "total": 7
         }
       },
       "reason": "the generated source re-compiled and behaved identically",
@@ -3596,7 +3617,7 @@
           "verified": true
         }
       },
-      "source": "int overwritten_before_read() {\n    return 3;\n}\n\nint dead_in_branch(int flag) {\n    int used = 0;\n    if (flag) {\n        used = 1;\n    } else {\n        used = 2;\n    }\n    return used;\n}\n\nint dead_loop_value(int n) {\n    int total = 0;\n    for (int i = 0; i < n; i = i + 1) {\n        total = total + i;\n    }\n    return total;\n}\n\nint self_assignment(int x) {\n    int same = x;\n    same = same;\n    return same;\n}\n\nint main() {\n    printf(\"overwritten_before_read() = %d\\n\", overwritten_before_read());\n    printf(\"dead_in_branch(1) = %d\\n\", dead_in_branch(1));\n    printf(\"dead_in_branch(0) = %d\\n\", dead_in_branch(0));\n    printf(\"dead_loop_value(5) = %d\\n\", dead_loop_value(5));\n    printf(\"self_assignment(7) = %d\\n\", self_assignment(7));\n    return 0;\n}\n",
+      "source": "int overwritten_before_read() {\n    return 3;\n}\n\nint dead_in_branch(int flag) {\n    int used;\n    if (flag) {\n        used = 1;\n    } else {\n        used = 2;\n    }\n    return used;\n}\n\nint dead_loop_value(int n) {\n    int total = 0;\n    for (int i = 0; i < n; i = i + 1) {\n        total = total + i;\n    }\n    return total;\n}\n\nint self_assignment(int x) {\n    int same = x;\n    same = same;\n    return same;\n}\n\nint main() {\n    printf(\"overwritten_before_read() = %d\\n\", overwritten_before_read());\n    printf(\"dead_in_branch(1) = %d\\n\", dead_in_branch(1));\n    printf(\"dead_in_branch(0) = %d\\n\", dead_in_branch(0));\n    printf(\"dead_loop_value(5) = %d\\n\", dead_loop_value(5));\n    printf(\"self_assignment(7) = %d\\n\", self_assignment(7));\n    return 0;\n}\n",
       "verified": true
     },
     "dataflow": {
@@ -6259,7 +6280,7 @@
       },
       {
         "code": "I-CGN-001",
-        "message": "the source generator rewrote 6 part(s) of the program",
+        "message": "the source generator rewrote 7 part(s) of the program",
         "related": null,
         "severity": "info",
         "span": null,

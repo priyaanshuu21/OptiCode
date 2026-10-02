@@ -3152,10 +3152,29 @@
       }
     },
     "codegen": {
-      "annotated_source": "float scale(float value, float factor) {\n    return value * factor;\n}\n\nint to_int(float value) {\n    int whole = value;\n    return whole;\n}\n\nint main() {\n    int whole = 7;\n    /* removed: float part = 0.5; */\n    /* removed: float mixed = whole + part; */\n    printf(\"whole=%d part=%f mixed=%f\\n\", 7, 0.5, 7.5);\n    float doubled = scale(7.5, 2.0);\n    printf(\"doubled=%f\\n\", doubled);\n    printf(\"as int: %d\\n\", to_int(doubled));\n    /* removed: int comparisons = 0; */\n    /* removed: comparisons = comparisons + 1; */\n    /* removed: if (mixed < 7.5) {\n    comparisons = comparisons + 1;\n} */\n    /* removed: comparisons = comparisons + 1; */\n    printf(\"true comparisons: %d of 3\\n\", 2);\n    /* removed: float zero = 0.0; */\n    /* removed: int flag = !zero; */\n    printf(\"!0.0 = %d\\n\", 1);\n    return 0;\n}\n",
+      "annotated_source": "float scale(float value, float factor) {\n    return value * factor;\n}\n\nint to_int(float value) {\n    int whole = value;\n    return whole;\n}\n\nint main() {\n    /* removed: int whole = 7; */\n    /* removed: float part = 0.5; */\n    /* removed: float mixed = whole + part; */\n    printf(\"whole=%d part=%f mixed=%f\\n\", 7, 0.5, 7.5);\n    float doubled = scale(7.5, 2.0);\n    printf(\"doubled=%f\\n\", doubled);\n    printf(\"as int: %d\\n\", to_int(doubled));\n    /* removed: int comparisons = 0; */\n    /* removed: comparisons = comparisons + 1; */\n    /* removed: if (mixed < 7.5) {\n    comparisons = comparisons + 1;\n} */\n    /* removed: comparisons = comparisons + 1; */\n    printf(\"true comparisons: %d of 3\\n\", 2);\n    /* removed: float zero = 0.0; */\n    /* removed: int flag = !zero; */\n    printf(\"!0.0 = %d\\n\", 1);\n    return 0;\n}\n",
       "applied": true,
       "changes": {
         "changes": [
+          {
+            "before": "int whole = 7;",
+            "function": "main",
+            "instruction_ids": [
+              "i1"
+            ],
+            "kind": "statement_removed",
+            "node_id": "n19",
+            "passes": [
+              "dead-assignments"
+            ],
+            "reason": "nothing reads `whole_2` after this point",
+            "span": {
+              "end_col": 18,
+              "end_line": 14,
+              "start_col": 5,
+              "start_line": 14
+            }
+          },
           {
             "before": "float part = 0.5;",
             "function": "main",
@@ -3662,8 +3681,9 @@
         "counts": {
           "branches_resolved": 3,
           "expressions_folded": 13,
-          "statements_removed": 8,
-          "total": 24
+          "initializers_removed": 0,
+          "statements_removed": 9,
+          "total": 25
         }
       },
       "reason": "the generated source re-compiled and behaved identically",
@@ -3708,7 +3728,7 @@
           "verified": true
         }
       },
-      "source": "float scale(float value, float factor) {\n    return value * factor;\n}\n\nint to_int(float value) {\n    int whole = value;\n    return whole;\n}\n\nint main() {\n    int whole = 7;\n    printf(\"whole=%d part=%f mixed=%f\\n\", 7, 0.5, 7.5);\n    float doubled = scale(7.5, 2.0);\n    printf(\"doubled=%f\\n\", doubled);\n    printf(\"as int: %d\\n\", to_int(doubled));\n    printf(\"true comparisons: %d of 3\\n\", 2);\n    printf(\"!0.0 = %d\\n\", 1);\n    return 0;\n}\n",
+      "source": "float scale(float value, float factor) {\n    return value * factor;\n}\n\nint to_int(float value) {\n    int whole = value;\n    return whole;\n}\n\nint main() {\n    printf(\"whole=%d part=%f mixed=%f\\n\", 7, 0.5, 7.5);\n    float doubled = scale(7.5, 2.0);\n    printf(\"doubled=%f\\n\", doubled);\n    printf(\"as int: %d\\n\", to_int(doubled));\n    printf(\"true comparisons: %d of 3\\n\", 2);\n    printf(\"!0.0 = %d\\n\", 1);\n    return 0;\n}\n",
       "verified": true
     },
     "dataflow": {
@@ -6437,7 +6457,7 @@
       },
       {
         "code": "I-CGN-001",
-        "message": "the source generator rewrote 24 part(s) of the program",
+        "message": "the source generator rewrote 25 part(s) of the program",
         "related": null,
         "severity": "info",
         "span": null,

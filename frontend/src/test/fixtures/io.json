@@ -1381,21 +1381,100 @@
       }
     },
     "codegen": {
-      "annotated_source": "/* Reading input with scanf and printing it back with printf. */\n\nint main() {\n    int count = 0;\n    float price = 0.0;\n\n    printf(\"How many items? \");\n    scanf(\"%d\", &count);\n\n    printf(\"Price each? \");\n    scanf(\"%f\", &price);\n\n    float total = price * count;\n    printf(\"Total for %d items at %f each: %f\\n\", count, price, total);\n\n    /* Several values in one format string, each with its own specifier. */\n    int a;\n    int b;\n    printf(\"Enter two integers: \");\n    scanf(\"%d %d\", &a, &b);\n    printf(\"sum=%d diff=%d product=%d\\n\", a + b, a - b, a * b);\n\n    /* %% prints a literal percent sign and consumes no argument. */\n    printf(\"100%% of the total is %f\\n\", total);\n\n    return 0;\n}",
-      "applied": false,
+      "annotated_source": "int main() {\n    int count;\n    float price;\n    printf(\"How many items? \");\n    scanf(\"%d\", &count);\n    printf(\"Price each? \");\n    scanf(\"%f\", &price);\n    float total = price * count;\n    printf(\"Total for %d items at %f each: %f\\n\", count, price, total);\n    int a;\n    int b;\n    printf(\"Enter two integers: \");\n    scanf(\"%d %d\", &a, &b);\n    printf(\"sum=%d diff=%d product=%d\\n\", a + b, a - b, a * b);\n    printf(\"100%% of the total is %f\\n\", total);\n    return 0;\n}\n",
+      "applied": true,
       "changes": {
-        "changes": [],
+        "changes": [
+          {
+            "after": "int count;",
+            "before": "int count = 0;",
+            "function": "main",
+            "instruction_ids": [
+              "i1"
+            ],
+            "kind": "initializer_removed",
+            "node_id": "n4",
+            "passes": [
+              "dead-assignments"
+            ],
+            "reason": "nothing reads `count` after this point",
+            "span": {
+              "end_col": 18,
+              "end_line": 4,
+              "start_col": 5,
+              "start_line": 4
+            }
+          },
+          {
+            "after": "float price;",
+            "before": "float price = 0.0;",
+            "function": "main",
+            "instruction_ids": [
+              "i2"
+            ],
+            "kind": "initializer_removed",
+            "node_id": "n6",
+            "passes": [
+              "dead-assignments"
+            ],
+            "reason": "nothing reads `price` after this point",
+            "span": {
+              "end_col": 22,
+              "end_line": 5,
+              "start_col": 5,
+              "start_line": 5
+            }
+          }
+        ],
         "counts": {
           "branches_resolved": 0,
           "expressions_folded": 0,
+          "initializers_removed": 2,
           "statements_removed": 0,
-          "total": 0
+          "total": 2
         }
       },
-      "reason": "the optimizer made no change the source could show",
-      "self_check": null,
-      "source": "/* Reading input with scanf and printing it back with printf. */\n\nint main() {\n    int count = 0;\n    float price = 0.0;\n\n    printf(\"How many items? \");\n    scanf(\"%d\", &count);\n\n    printf(\"Price each? \");\n    scanf(\"%f\", &price);\n\n    float total = price * count;\n    printf(\"Total for %d items at %f each: %f\\n\", count, price, total);\n\n    /* Several values in one format string, each with its own specifier. */\n    int a;\n    int b;\n    printf(\"Enter two integers: \");\n    scanf(\"%d %d\", &a, &b);\n    printf(\"sum=%d diff=%d product=%d\\n\", a + b, a - b, a * b);\n\n    /* %% prints a literal percent sign and consumes no argument. */\n    printf(\"100%% of the total is %f\\n\", total);\n\n    return 0;\n}",
-      "verified": false
+      "reason": "the generated source re-compiled and behaved identically",
+      "self_check": {
+        "ok": true,
+        "reason": "",
+        "verification": {
+          "cases": [
+            {
+              "entry": "main",
+              "inconclusive": false,
+              "matched": true,
+              "optimized": "input_exhausted, prints 'How many items? '",
+              "original": "input_exhausted, prints 'How many items? '",
+              "stdin": ""
+            },
+            {
+              "entry": "main",
+              "inconclusive": false,
+              "matched": true,
+              "optimized": "input_exhausted, prints 'How many items? Price each? '",
+              "original": "input_exhausted, prints 'How many items? Price each? '",
+              "stdin": "0"
+            },
+            {
+              "entry": "main",
+              "inconclusive": false,
+              "matched": true,
+              "optimized": "ok, returns 0, prints 'How many items? Price each? Total for 3 items at 4.000000 each: 12.000000\\nEnter two integers: sum=11 diff=-1 product=30\\n100% of the total is 12.000000\\n'",
+              "original": "ok, returns 0, prints 'How many items? Price each? Total for 3 items at 4.000000 each: 12.000000\\nEnter two integers: sum=11 diff=-1 product=30\\n100% of the total is 12.000000\\n'",
+              "stdin": "3 4 5 6 7"
+            }
+          ],
+          "cases_checked": 3,
+          "cases_inconclusive": 0,
+          "cases_truncated": false,
+          "skipped": false,
+          "unverified_entries": [],
+          "verified": true
+        }
+      },
+      "source": "int main() {\n    int count;\n    float price;\n    printf(\"How many items? \");\n    scanf(\"%d\", &count);\n    printf(\"Price each? \");\n    scanf(\"%f\", &price);\n    float total = price * count;\n    printf(\"Total for %d items at %f each: %f\\n\", count, price, total);\n    int a;\n    int b;\n    printf(\"Enter two integers: \");\n    scanf(\"%d %d\", &a, &b);\n    printf(\"sum=%d diff=%d product=%d\\n\", a + b, a - b, a * b);\n    printf(\"100%% of the total is %f\\n\", total);\n    return 0;\n}\n",
+      "verified": true
     },
     "dataflow": {
       "main": {
@@ -2256,7 +2335,7 @@
       },
       {
         "code": "I-CGN-001",
-        "message": "the source generator kept your original source: the optimizer made no change the source could show",
+        "message": "the source generator rewrote 2 part(s) of the program",
         "related": null,
         "severity": "info",
         "span": null,

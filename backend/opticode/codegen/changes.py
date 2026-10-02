@@ -10,9 +10,12 @@ review: it names the AST node that was touched, the span in *their* file, the so
 before and after, and the pass that justified it. The frontend needs exactly these to render
 a diff, an inline explanation, or an undo affordance.
 
-Three kinds, because the three are genuinely different to undo:
+Four kinds, because the four are genuinely different to undo:
 
 * :attr:`ChangeKind.STATEMENT_REMOVED` — a line is gone. Undo means putting a line back.
+* :attr:`ChangeKind.INITIALIZER_REMOVED` — a declaration lost its initializer but stayed.
+  Undo means putting the value back, which is why it is separate from a removal: the variable
+  is still there and still in scope, and only the store that initialized it is gone.
 * :attr:`ChangeKind.EXPRESSION_FOLDED` — an expression became a literal. Undo means
   restoring the expression, and it is the only kind that can make the source *shorter
   without losing a statement*.
@@ -42,6 +45,8 @@ class ChangeKind(StrEnum):
 
     #: A whole statement was deleted from the tree.
     STATEMENT_REMOVED = "statement_removed"
+    #: A declaration kept its name and lost its initializer.
+    INITIALIZER_REMOVED = "initializer_removed"
     #: An expression was replaced by a literal, or an identifier by its known value.
     EXPRESSION_FOLDED = "expression_folded"
     #: An ``if`` with a constant condition was replaced by the arm that survives.
@@ -131,6 +136,10 @@ class ChangeMap:
         return len(self.by_kind(ChangeKind.STATEMENT_REMOVED))
 
     @property
+    def detached_initializers(self) -> int:
+        return len(self.by_kind(ChangeKind.INITIALIZER_REMOVED))
+
+    @property
     def folded_expressions(self) -> int:
         return len(self.by_kind(ChangeKind.EXPRESSION_FOLDED))
 
@@ -139,13 +148,15 @@ class ChangeMap:
         return len(self.by_kind(ChangeKind.BRANCH_RESOLVED))
 
     def sorted_by_position(self) -> tuple[SourceChange, ...]:
-        return tuple(sorted(self.changes, key=lambda change: (change.span.start_line,
-                                                              change.span.start_col)))
+        return tuple(
+            sorted(self.changes, key=lambda change: (change.span.start_line, change.span.start_col))
+        )
 
     def counts(self) -> dict[str, int]:
         return {
             "total": len(self.changes),
             "statements_removed": self.removed_statements,
+            "initializers_removed": self.detached_initializers,
             "expressions_folded": self.folded_expressions,
             "branches_resolved": self.resolved_branches,
         }

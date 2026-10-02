@@ -85,6 +85,12 @@ def _rewrite(
     if node.id in plan.replace:
         return plan.replace[node.id]
 
+    if node.id in plan.detach and isinstance(node, VarDecl):
+        # The declaration survives with its name and loses only the value. Handing back a new
+        # node with `init=None` rather than an empty statement list is what keeps the unparser
+        # printing `int used;` instead of nothing at all.
+        return replace(node, init=None)
+
     if node.id in plan.resolve:
         kept = plan.resolve[node.id]
         if kept is None:
