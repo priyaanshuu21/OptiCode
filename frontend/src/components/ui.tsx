@@ -1,4 +1,4 @@
-import type { JSX, ReactNode } from 'react'
+import { createContext, useContext, type JSX, type ReactNode } from 'react'
 
 /**
  * Small shared presentational pieces.
@@ -8,6 +8,28 @@ import type { JSX, ReactNode } from 'react'
  * different empty state, because "no results" and "this stage did not run" mean very different
  * things to somebody reading a compiler.
  */
+
+/**
+ * The way back to the main workspace, handed down to whichever stage screen is open.
+ *
+ * A context rather than a prop because the Back button belongs in each panel's own header — at
+ * the top-left, next to the title — and threading a callback through eight views for a control
+ * they do not otherwise care about would be noise at every one of them. Outside a stage screen
+ * the value is `null`, so a panel rendered in the workspace simply has no Back button.
+ */
+export const StageBackContext = createContext<(() => void) | null>(null)
+
+function BackButton({ onClick }: { onClick: () => void }): JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex shrink-0 items-center gap-1 rounded border border-edge px-2.5 py-1 font-mono text-xs text-slate-300 transition-colors hover:border-edge-strong hover:bg-surface-overlay hover:text-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stage-ast"
+    >
+      <span aria-hidden="true">←</span> Back
+    </button>
+  )
+}
 
 export function Panel({
   title,
@@ -20,12 +42,16 @@ export function Panel({
   actions?: JSX.Element
   children: ReactNode
 }): JSX.Element {
+  const back = useContext(StageBackContext)
   return (
     <section className="flex min-h-0 flex-1 flex-col" aria-label={title}>
-      <header className="flex items-start justify-between gap-4 border-b border-edge px-4 py-3">
-        <div>
-          <h2 className="text-sm font-semibold tracking-wide text-slate-200">{title}</h2>
-          {subtitle ? <p className="mt-0.5 text-xs text-slate-400">{subtitle}</p> : null}
+      <header className="flex items-start justify-between gap-4 border-b border-edge bg-surface-raised px-5 py-3.5">
+        <div className="flex min-w-0 items-start gap-3">
+          {back ? <BackButton onClick={back} /> : null}
+          <div className="min-w-0">
+            <h2 className="text-xl font-semibold tracking-tight text-slate-100">{title}</h2>
+            {subtitle ? <p className="mt-1 text-sm leading-relaxed text-slate-300">{subtitle}</p> : null}
+          </div>
         </div>
         {actions ? <div className="shrink-0">{actions}</div> : null}
       </header>
@@ -52,10 +78,10 @@ export function EmptyState({
 }): JSX.Element {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
-      <p className="text-sm font-medium text-slate-300">{title}</p>
-      <p className="max-w-md text-xs leading-relaxed text-slate-500">{detail}</p>
+      <p className="text-base font-medium text-slate-100">{title}</p>
+      <p className="max-w-md text-sm leading-relaxed text-slate-300">{detail}</p>
       {skipped ? (
-        <p className="mt-1 rounded bg-surface-overlay px-2 py-1 font-mono text-2xs text-slate-400">
+        <p className="mt-1 rounded bg-surface-overlay px-2.5 py-1 font-mono text-2xs text-slate-300">
           stage skipped
         </p>
       ) : null}

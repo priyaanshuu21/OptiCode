@@ -174,6 +174,33 @@ def test_consecutive_labels_share_one_block():
     assert set(cfg.blocks[0].labels) == {"L1", "L2"}
 
 
+def test_consecutive_labels_that_are_leaders_do_not_leave_an_empty_block():
+    """Two adjacent labels, each a leader for a different reason, are still one block.
+
+    ``L2`` is a leader simply because it follows the ``goto``; ``L1`` is a leader because
+    the ``goto`` targets it. Splitting at both leaves the first block holding a label and
+    no instructions, which is not a basic block at all. The labels fold onto the code they
+    name, and a jump to either one still lands on that code.
+    """
+    cfg = build_cfg(
+        func([
+            ins("i1", Opcode.GOTO, target="L1"),
+            ins("i2", Opcode.LABEL, target="L2"),
+            ins("i3", Opcode.LABEL, target="L1"),
+            ins("i4", Opcode.RETURN, operands=("0",)),
+        ])
+    )
+    assert all(block.instructions for block in cfg.blocks), "no block may be empty"
+    assert len(cfg.blocks) == 2
+    merged = cfg.blocks[1]
+    assert set(merged.labels) == {"L1", "L2"}
+    assert [item.id for item in merged.instructions] == ["i4"]
+    assert [(edge.src, edge.dst, edge.kind) for edge in cfg.edges] == [
+        ("B1", "B2", EdgeKind.JUMP),
+        ("B2", cfg.exit, EdgeKind.RETURN),
+    ], "the jump must resolve to the merged block, not to a label-only stub"
+
+
 # ---------------------------------------------------------------------- edges
 
 

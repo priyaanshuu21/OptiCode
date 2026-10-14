@@ -203,7 +203,7 @@ function AstCanvas({
       proOptions={{ hideAttribution: true }}
       className="bg-surface-sunken"
     >
-      <Background color="#243050" gap={18} size={1} />
+      <Background color="#26334f" gap={18} size={1} />
       <Controls showInteractive={false} />
     </ReactFlow>
   )

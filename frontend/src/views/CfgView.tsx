@@ -3,6 +3,7 @@ import { ReactFlowProvider } from '@xyflow/react'
 
 import { cfgOf, stageSkipped } from '@/api/client'
 import type { FunctionCfg } from '@/api/types'
+import { instructionSummary } from '@/lib/ir'
 import { readableOrder } from '@/lib/layout'
 import { useCompilerStore } from '@/store/compiler'
 import { Count, EmptyState, Panel } from '@/components/ui'
@@ -83,6 +84,50 @@ export function CfgView(): JSX.Element {
         }
       }}
     />
+  )
+}
+
+/**
+ * The leaders, in the order a reader meets them.
+ *
+ * A block's first instruction is its leader, and the CFG builder records *why* it is one — the
+ * first instruction of the function, a jump target, or the instruction after a jump. That reason
+ * is the definition of a basic block, so it belongs on screen: a reader who can see that every
+ * leader is one of those three cases can check the block split rather than trust it.
+ */
+function LeaderList({ graph }: { graph: FunctionCfg }): JSX.Element {
+  return (
+    <details className="mt-1">
+      <summary className="cursor-pointer select-none font-mono text-2xs text-slate-400">
+        Block leaders ({graph.blocks.length})
+      </summary>
+      <div className="mt-1 max-h-40 overflow-auto">
+        <table className="w-full border-collapse text-left font-mono text-2xs">
+          <caption className="sr-only">Why each basic block begins where it does</caption>
+          <thead>
+            <tr className="text-slate-500">
+              <th scope="col" className="px-3 py-1 font-normal">instruction</th>
+              <th scope="col" className="px-3 py-1 font-normal">reason</th>
+              <th scope="col" className="px-3 py-1 font-normal">block</th>
+            </tr>
+          </thead>
+          <tbody>
+            {graph.blocks.map((block) => {
+              const leader = block.instructions[0]
+              return (
+                <tr key={block.id} className="border-t border-edge/60">
+                  <td className="px-3 py-1 text-slate-300">
+                    {leader ? instructionSummary(leader) : <span className="text-slate-400">empty</span>}
+                  </td>
+                  <td className="px-3 py-1 text-slate-400">{block.leader_reason || 'first block'}</td>
+                  <td className="px-3 py-1 text-stage-block">{block.id}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </details>
   )
 }
 
@@ -182,6 +227,7 @@ function GraphBody({
         </div>
         <div className="shrink-0 border-t border-edge px-4 py-2">
           <EdgeLegend />
+          <LeaderList graph={graph} />
         </div>
       </div>
     </Panel>

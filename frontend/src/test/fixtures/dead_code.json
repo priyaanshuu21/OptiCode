@@ -3666,6 +3666,19 @@
             ]
           }
         },
+        "def": {
+          "B1": [
+            "used"
+          ],
+          "B2": [
+            "only_here",
+            "used"
+          ],
+          "B3": [
+            "used"
+          ],
+          "B4": []
+        },
         "exit_values": {
           "flag": {
             "kind": "nac"
@@ -4094,7 +4107,17 @@
             "trace_truncated": false
           }
         },
-        "uninitialized_reads": []
+        "uninitialized_reads": [],
+        "use": {
+          "B1": [
+            "flag"
+          ],
+          "B2": [],
+          "B3": [],
+          "B4": [
+            "used"
+          ]
+        }
       },
       "dead_loop_value": {
         "branches": [
@@ -4240,6 +4263,24 @@
               ]
             ]
           }
+        },
+        "def": {
+          "B1": [
+            "i",
+            "total"
+          ],
+          "B2": [
+            "t1"
+          ],
+          "B3": [
+            "i",
+            "scratch",
+            "t2",
+            "t3",
+            "t4",
+            "total"
+          ],
+          "B4": []
         },
         "exit_values": {
           "i": {
@@ -5358,7 +5399,21 @@
             "trace_truncated": false
           }
         },
-        "uninitialized_reads": []
+        "uninitialized_reads": [],
+        "use": {
+          "B1": [],
+          "B2": [
+            "i",
+            "n"
+          ],
+          "B3": [
+            "i",
+            "total"
+          ],
+          "B4": [
+            "total"
+          ]
+        }
       },
       "main": {
         "branches": [],
@@ -5412,6 +5467,15 @@
               ]
             ]
           }
+        },
+        "def": {
+          "B1": [
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5"
+          ]
         },
         "exit_values": {
           "t1": {
@@ -5773,7 +5837,10 @@
             "trace_truncated": false
           }
         },
-        "uninitialized_reads": []
+        "uninitialized_reads": [],
+        "use": {
+          "B1": []
+        }
       },
       "overwritten_before_read": {
         "branches": [],
@@ -5791,6 +5858,11 @@
               ]
             ]
           }
+        },
+        "def": {
+          "B1": [
+            "a"
+          ]
         },
         "exit_values": {
           "a": {
@@ -5973,7 +6045,10 @@
             "trace_truncated": false
           }
         },
-        "uninitialized_reads": []
+        "uninitialized_reads": [],
+        "use": {
+          "B1": []
+        }
       },
       "self_assignment": {
         "branches": [],
@@ -6009,6 +6084,11 @@
               ]
             ]
           }
+        },
+        "def": {
+          "B1": [
+            "same"
+          ]
         },
         "exit_values": {
           "same": {
@@ -6179,7 +6259,12 @@
             "trace_truncated": false
           }
         },
-        "uninitialized_reads": []
+        "uninitialized_reads": [],
+        "use": {
+          "B1": [
+            "x"
+          ]
+        }
       }
     },
     "diagnostics": [

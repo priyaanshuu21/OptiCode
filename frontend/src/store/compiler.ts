@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-import { ApiError, compile, health, listExamples, readExample } from '@/api/client'
+import { ApiError, codegenOf, compile, health, listExamples, readExample } from '@/api/client'
 import type {
   CompileRequest,
   CompileResponse,
@@ -38,54 +38,46 @@ export type StageId =
   | 'optimization'
   | 'diagnostics'
 
-export const STAGES: { id: StageId; label: string; stage: string; blurb: string }[] = [
-  {
-    id: 'tokens',
-    label: 'Tokens',
-    stage: 'lexer',
-    blurb: 'What the lexer saw, in order, with spans.',
-  },
-  {
-    id: 'ast',
-    label: 'AST',
-    stage: 'parser',
-    blurb: 'The parse tree, with each node traced back to a source range.',
-  },
-  {
-    id: 'tac',
-    label: 'TAC',
-    stage: 'ir',
-    blurb: 'Three-address code, one instruction per source expression.',
-  },
-  {
-    id: 'cfg',
-    label: 'CFG',
-    stage: 'cfg',
-    blurb: 'Basic blocks and the edges between them. Back edges are loops.',
-  },
+/**
+ * The compiler stages, each the name of a course topic and a dedicated screen.
+ *
+ * `label` is the short name a card shows; `description` is the one line under it, phrased as what
+ * the reader gets rather than as what the stage is called. The screen's own panels carry the
+ * precise wording, so these stay deliberately plain.
+ */
+export const STAGES: {
+  id: StageId
+  label: string
+  stage: string
+  description: string
+}[] = [
+  { id: 'tokens', label: 'Tokens', stage: 'lexer', description: 'See how the code is split into tokens.' },
+  { id: 'ast', label: 'AST', stage: 'parser', description: 'Explore the structure of your program.' },
+  { id: 'tac', label: 'TAC', stage: 'ir', description: 'See the intermediate instructions.' },
+  { id: 'cfg', label: 'CFG', stage: 'cfg', description: 'Follow the possible execution paths.' },
   {
     id: 'dataflow',
-    label: 'Data flow',
+    label: 'Data Flow',
     stage: 'dataflow',
-    blurb: 'Liveness, reaching definitions and constants, with the solver step by step.',
+    description: 'See which variable values are still needed.',
   },
   {
     id: 'findings',
     label: 'Findings',
     stage: 'analysis',
-    blurb: 'Dead assignments and unreachable code, each with the evidence behind it.',
+    description: 'Review issues and optimization opportunities.',
   },
   {
     id: 'optimization',
-    label: 'Optimizer',
+    label: 'Optimization',
     stage: 'optimizer',
-    blurb: 'What the passes did, what they skipped, and whether the result still runs the same.',
+    description: 'Compare and apply optimized code.',
   },
   {
     id: 'diagnostics',
     label: 'Diagnostics',
     stage: 'internal',
-    blurb: 'Every message from every stage, grouped by severity.',
+    description: 'Review compiler errors and warnings.',
   },
 ]
 
@@ -119,53 +111,99 @@ export interface BlockSelection {
   block: string
 }
 
+/**
+ * A proposed rewrite of the current source, generated on demand from the Optimization screen.
+ *
+ * Kept apart from `response` on purpose. The report in `response` describes the program that was
+ * last compiled; the preview is a *proposal* for the source currently in the editor, and the two
+ * can be about different programs at the same time. `originalSource` is what makes that checkable
+ * — if it no longer matches the editor, the proposal is stale and must not be applied.
+ */
+export interface OptimizationPreview {
+  originalSource: string
+  optimizedSource: string
+  /** Whether the optimizer actually changed the source (as opposed to only the TAC). */
+  changed: boolean
+  /** The optimizer's one-line reason, when it has one. */
+  reason: string
+}
+
 interface CompilerState {
   source: string
   /** Program input, for the examples that read. Sent only when there is some. */
   stdin: string
   mode: 'analyze' | 'optimize'
   response: CompileResponse | null
+  /**
+   * The source text that `response` describes.
+   *
+   * The editor holds a live buffer the user can change at any time, and a compile is a request
+   * that takes time to come back. Without this, nothing can tell "these results describe what is
+   * on screen" from "these results describe the program as it was a moment ago".
+   */
+  compiledSource: string | null
   status: 'idle' | 'compiling' | 'ready' | 'error'
   error: string | null
   health: HealthResponse | null
-  activeStage: StageId
+  /** Which dedicated screen is open. `null` is the main workspace. */
+  activeStage: StageId | null
   selection: Selection | null
   selectedBlock: BlockSelection | null
   examples: ExampleSummary[]
   examplesError: string | null
   loadedExample: string | null
+  /** The on-demand optimization proposal for the current source, if one has been generated. */
+  optimizationPreview: OptimizationPreview | null
+  previewStatus: 'idle' | 'loading' | 'error'
+  previewError: string | null
 
   setSource: (source: string) => void
   applyOptimizedSource: (source: string) => void
   setStdin: (stdin: string) => void
   setMode: (mode: 'analyze' | 'optimize') => void
-  setActiveStage: (stage: StageId) => void
+  setActiveStage: (stage: StageId | null) => void
   select: (selection: Selection | null) => void
   selectBlock: (block: BlockSelection | null) => void
   loadExamples: () => Promise<void>
   loadExample: (name: string) => Promise<void>
   run: () => Promise<void>
   checkHealth: () => Promise<void>
+  generateOptimizationPreview: () => Promise<void>
+  clearOptimizationPreview: () => void
 }
 
 let pending: ReturnType<typeof setTimeout> | undefined
 /** In-flight request generation, so a slow response cannot overwrite a newer one. */
 let generation = 0
+/**
+ * Preview generation, separate from `generation` on purpose.
+ *
+ * A preview is a second compile that neither replaces nor invalidates the report on screen, so
+ * it must not share a counter with the main compile — advancing it would cancel an unrelated,
+ * still-wanted compile.
+ */
+let previewGeneration = 0
 
 export const useCompilerStore = create<CompilerState>((set, get) => ({
   source: DEFAULT_SOURCE,
   stdin: '',
   mode: 'analyze',
   response: null,
+  compiledSource: null,
   status: 'idle',
   error: null,
   health: null,
-  activeStage: 'ast',
+  // Opens on the main workspace, not on a stage. Nothing has been chosen yet, so nothing should
+  // pretend to be.
+  activeStage: null,
   selection: null,
   selectedBlock: null,
   examples: [],
   examplesError: null,
   loadedExample: null,
+  optimizationPreview: null,
+  previewStatus: 'idle',
+  previewError: null,
 
   setSource: (source) => {
     set({ source })
@@ -188,8 +226,13 @@ export const useCompilerStore = create<CompilerState>((set, get) => ({
     set({
       source,
       response: null,
+      compiledSource: null,
       selection: null,
       selectedBlock: null,
+      // The proposal described the pre-apply source and has now been consumed.
+      optimizationPreview: null,
+      previewStatus: 'idle',
+      previewError: null,
       status: 'compiling',
       error: null,
     })
@@ -244,8 +287,11 @@ export const useCompilerStore = create<CompilerState>((set, get) => ({
         mode: detail.suggested_mode === 'optimize' ? 'optimize' : 'analyze',
         loadedExample: name,
         response: null,
+        compiledSource: null,
         selection: null,
         selectedBlock: null,
+        optimizationPreview: null,
+        previewError: null,
       })
       await get().run()
     } catch (cause) {
@@ -271,14 +317,16 @@ export const useCompilerStore = create<CompilerState>((set, get) => ({
       if (current !== generation) {
         return
       }
-      set({ response, status: 'ready' })
+      // `source` is the text this request was built from, so recording it is what lets the UI
+      // tell these results apart from results for text the user has since edited.
+      set({ response, status: 'ready', compiledSource: source })
     } catch (cause) {
       if (current !== generation) {
         return
       }
       const message =
         cause instanceof ApiError ? cause.message : (cause as Error).message
-      set({ status: 'error', error: message, response: null })
+      set({ status: 'error', error: message, response: null, compiledSource: null })
     }
   },
 
@@ -290,6 +338,54 @@ export const useCompilerStore = create<CompilerState>((set, get) => ({
       // the same thing with a better message.
       set({ health: null })
     }
+  },
+
+  // A compile of its own, in optimize mode, whose result is a *proposal* and not the report on
+  // screen. It deliberately does not touch `response`: opening the Optimization screen must not
+  // rewrite the source, and generating a proposal must not discard the results of the last
+  // analyze the rest of the app is still showing.
+  generateOptimizationPreview: async () => {
+    const { source } = get()
+    const current = ++previewGeneration
+    set({ previewStatus: 'loading', previewError: null })
+    try {
+      const response = await compile({ source, mode: 'optimize' })
+      if (current !== previewGeneration) {
+        return
+      }
+      // The editor moved on while this request was in flight, so the proposal describes text
+      // that is no longer on screen. Discarding it is the only way apply can trust a preview.
+      if (get().source !== source) {
+        set({ previewStatus: 'idle', optimizationPreview: null })
+        return
+      }
+      const codegen = codegenOf(response)
+      const changed = codegen?.applied === true && codegen.source !== source
+      set({
+        previewStatus: 'idle',
+        optimizationPreview: {
+          originalSource: source,
+          optimizedSource: codegen?.applied ? codegen.source : source,
+          changed,
+          reason: codegen?.reason ?? '',
+        },
+      })
+    } catch (cause) {
+      if (current !== previewGeneration) {
+        return
+      }
+      set({
+        previewStatus: 'error',
+        previewError: cause instanceof ApiError ? cause.message : String(cause),
+        optimizationPreview: null,
+      })
+    }
+  },
+
+  clearOptimizationPreview: () => {
+    // Invalidate any in-flight generation too, so its result cannot land after the clear.
+    previewGeneration += 1
+    set({ optimizationPreview: null, previewStatus: 'idle', previewError: null })
   },
 }))
 

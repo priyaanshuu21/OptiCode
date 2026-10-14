@@ -154,14 +154,20 @@ function FunctionTable({
         {instructions.map((instruction) => {
           const fact = facts?.instructions?.[instruction.id]
           const result = fact?.constants?.result
-          const dead = fact?.liveness ? !fact.liveness.dest_live : null
+          // `dest_live === false` says the *value* this instruction computes is never read. It
+          // does not say the instruction can go: a call, a division or a print keeps its effect
+          // even when nobody reads its result. So "unused result" is a fact and "safe to remove"
+          // is a separate claim, made only when the instruction has no other effect.
+          const writesValue = instruction.dest != null
+          const unused = writesValue && fact?.liveness != null && !fact.liveness.dest_live
+          const removable = unused && !instruction.has_side_effects && !instruction.may_trap
           return (
             <tr
               key={instruction.id}
               onClick={() => onSelect(instruction)}
               className="cursor-pointer border-t border-edge/60 align-top hover:bg-surface-overlay"
             >
-              <td className="px-3 py-1 font-mono text-slate-600">{instruction.id}</td>
+              <td className="px-3 py-1 font-mono text-slate-400">{instruction.id}</td>
               <td className="px-3 py-1 font-mono text-slate-300">{formatDest(instruction)}</td>
               <td className={`px-3 py-1 font-mono ${CLASS_COLOURS[classify(instruction)]}`}>
                 {instruction.opcode}
@@ -176,13 +182,24 @@ function FunctionTable({
                 {result && result.kind === 'const' && result.value !== undefined && result.value !== null ? (
                   <span className="text-emerald-300">{String(result.value)}</span>
                 ) : (
-                  <span className="text-slate-700">—</span>
+                  <span className="text-slate-500">—</span>
                 )}
               </td>
               <td className="px-3 py-1">
-                {dead ? (
-                  <span className="rounded bg-severity-warning/15 px-1.5 py-0.5 font-mono text-2xs text-severity-warning">
-                    dead store
+                {unused ? (
+                  <span
+                    className="rounded bg-severity-warning/15 px-1.5 py-0.5 font-mono text-2xs text-severity-warning"
+                    title="nothing reads the value this instruction computes"
+                  >
+                    unused result
+                  </span>
+                ) : null}
+                {removable ? (
+                  <span
+                    className="ml-1 rounded bg-severity-success/15 px-1.5 py-0.5 font-mono text-2xs text-severity-success"
+                    title="no side effects, so the optimizer can remove it"
+                  >
+                    safe to remove
                   </span>
                 ) : null}
                 {effectFlags(instruction).map((flag) => (
@@ -194,12 +211,12 @@ function FunctionTable({
                   </span>
                 ))}
               </td>
-              <td className="whitespace-nowrap px-3 py-1 font-mono text-2xs text-slate-500" title={formatSpan(instruction.span)}>
+              <td className="whitespace-nowrap px-3 py-1 font-mono text-xs text-slate-400" title={formatSpan(instruction.span)}>
                 {instruction.span.start_line === instruction.span.end_line
                   ? `L${instruction.span.start_line}`
                   : `L${instruction.span.start_line}-${instruction.span.end_line}`}
                 {instruction.ast_node_id ? (
-                  <span className="ml-1 text-slate-600">{instruction.ast_node_id}</span>
+                  <span className="ml-1 text-slate-500">{instruction.ast_node_id}</span>
                 ) : null}
               </td>
             </tr>

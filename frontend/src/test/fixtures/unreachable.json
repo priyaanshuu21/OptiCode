@@ -2732,6 +2732,11 @@
             ]
           }
         },
+        "def": {
+          "B1": [
+            "t1"
+          ]
+        },
         "exit_values": {
           "t1": {
             "kind": "nac"
@@ -2879,7 +2884,12 @@
             "trace_truncated": false
           }
         },
-        "uninitialized_reads": []
+        "uninitialized_reads": [],
+        "use": {
+          "B1": [
+            "x"
+          ]
+        }
       },
       "loop_with_early_return": {
         "branches": [
@@ -2980,6 +2990,21 @@
               ]
             ]
           }
+        },
+        "def": {
+          "B1": [
+            "i"
+          ],
+          "B2": [],
+          "B3": [
+            "t1"
+          ],
+          "B4": [],
+          "B5": [
+            "i",
+            "t2"
+          ],
+          "B6": []
         },
         "exit_values": {
           "i": {
@@ -3898,7 +3923,22 @@
             "trace_truncated": false
           }
         },
-        "uninitialized_reads": []
+        "uninitialized_reads": [],
+        "use": {
+          "B1": [],
+          "B2": [],
+          "B3": [
+            "i",
+            "n"
+          ],
+          "B4": [
+            "i"
+          ],
+          "B5": [
+            "i"
+          ],
+          "B6": []
+        }
       },
       "main": {
         "branches": [],
@@ -3952,6 +3992,15 @@
               ]
             ]
           }
+        },
+        "def": {
+          "B1": [
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5"
+          ]
         },
         "exit_values": {
           "t1": {
@@ -4309,7 +4358,10 @@
             "trace_truncated": false
           }
         },
-        "uninitialized_reads": []
+        "uninitialized_reads": [],
+        "use": {
+          "B1": []
+        }
       },
       "sometimes_early": {
         "branches": [
@@ -4348,6 +4400,13 @@
               ]
             ]
           }
+        },
+        "def": {
+          "B1": [
+            "t1"
+          ],
+          "B2": [],
+          "B3": []
         },
         "exit_values": {
           "t1": {
@@ -4624,7 +4683,14 @@
             "trace_truncated": false
           }
         },
-        "uninitialized_reads": []
+        "uninitialized_reads": [],
+        "use": {
+          "B1": [
+            "x_2"
+          ],
+          "B2": [],
+          "B3": []
+        }
       }
     },
     "diagnostics": [

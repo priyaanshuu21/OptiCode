@@ -367,15 +367,60 @@ def _build_blocks(
     # Pair each leader with the next one, the last running to the end of the function.
     bounds = list(zip(starts, starts[1:] + [len(instructions)], strict=True))
     label_to_block: dict[str, str] = {}
-    blocks: list[BasicBlock] = []
+    raw: list[tuple[tuple[Instruction, ...], tuple[Instruction, ...], str, SourceSpan]] = []
 
-    for number, (start, stop) in enumerate(bounds, start=1):
-        block_id = f"B{number}"
+    for start, stop in bounds:
         members = instructions[start:stop]
         # Labels mark the leader and never execute, so they live beside the block rather
         # than inside it -- but they are kept, because linearize has to re-emit them.
         real = tuple(item for item in members if item.opcode is not Opcode.LABEL)
         defining = tuple(item for item in members if item.opcode is Opcode.LABEL)
+        raw.append(
+            (
+                real,
+                defining,
+                reasons[start],
+                SourceSpan(
+                    start_line=members[0].span.start_line,
+                    start_col=members[0].span.start_col,
+                    end_line=members[-1].span.end_line,
+                    end_col=members[-1].span.end_col,
+                ),
+            )
+        )
+
+    # Consecutive labels are separate leaders on paper, but nothing executes between them,
+    # so taken literally they leave a run of blocks that each hold a label and no code.
+    # A block that holds nothing but labels is not a block: its labels are folded into the
+    # next one, where they still mark the same straight-line run any jump would land on.
+    # Labels are collected here and flushed onto the next block that actually has code.
+    merged: list[tuple[tuple[Instruction, ...], tuple[Instruction, ...], str, SourceSpan]] = []
+    pending: list[tuple[tuple[Instruction, ...], str, SourceSpan]] = []
+    for real, defining, reason, span in raw:
+        if not real:
+            pending.append((defining, reason, span))
+            continue
+        leading = tuple(label for labels, _, _ in pending for label in labels)
+        merged.append(
+            (
+                real,
+                leading + defining,
+                pending[0][1] if pending else reason,
+                pending[0][2] if pending else span,
+            )
+        )
+        pending = []
+
+    # A function that ends in a label (a jump out of the last loop) has no following code
+    # to absorb it, so the trailing run becomes one place-holder block rather than one per
+    # label. It keeps the jump target resolvable; nothing else can be done with it.
+    if pending:
+        trailing = tuple(label for labels, _, _ in pending for label in labels)
+        merged.append(((), trailing, pending[0][1], pending[0][2]))
+
+    blocks: list[BasicBlock] = []
+    for number, (real, defining, reason, span) in enumerate(merged, start=1):
+        block_id = f"B{number}"
         for label_instruction in defining:
             label_to_block[label_instruction.target or ""] = block_id
         blocks.append(
@@ -383,13 +428,8 @@ def _build_blocks(
                 id=block_id,
                 instructions=real,
                 label_instructions=defining,
-                leader_reason=reasons[start],
-                span=SourceSpan(
-                    start_line=members[0].span.start_line,
-                    start_col=members[0].span.start_col,
-                    end_line=members[-1].span.end_line,
-                    end_col=members[-1].span.end_col,
-                ),
+                leader_reason=reason,
+                span=span,
             )
         )
 

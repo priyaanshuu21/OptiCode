@@ -312,6 +312,91 @@ def test_liveness_through_a_loop_converges():
         assert "i" in solution.block_in[block_id]
 
 
+# ============================================================== block USE / DEF
+
+
+def test_block_use_is_the_names_read_before_being_written_in_the_block():
+    """``x`` is written before it is read, so it is not in USE; ``c`` is only read."""
+    report = report_for("int f(int c) { int x; x = c; x = x + 1; return x; }")
+    assert report["use"] == {"B1": ["c"]}
+    assert report["def"] == {"B1": ["t1", "x"]}
+
+
+def test_block_use_excludes_a_name_assigned_before_it_is_read():
+    report = report_for("int f() { int x; x = 1; return x; }")
+    assert report["use"] == {"B1": []}, "x is defined before it is read"
+    assert report["def"] == {"B1": ["x"]}
+
+
+def test_block_use_reports_a_read_with_no_write_before_it():
+    report = report_for("int f() { int x; return x; }")
+    assert report["use"] == {"B1": ["x"]}, "x is read and never written in the block"
+    assert report["def"] == {"B1": []}
+
+
+def test_block_def_is_every_write_even_when_a_name_is_written_twice():
+    report = report_for("int f() { int x; x = 1; x = 2; return x; }")
+    assert report["def"] == {"B1": ["x"]}, "DEF is a set, so two writes collapse"
+
+
+def test_unreachable_blocks_have_no_use_or_def_entry():
+    """Absent, not present-with-an-empty-set: an unanalyzed block is not an empty one."""
+    report = report_for("int f() { return 1; }")
+    assert "B2" not in report["use"]
+    assert "B2" not in report["def"]
+    assert set(report["use"]) == set(report["def"]) == set(report["live_in"])
+
+
+def test_liveness_transfer_holds_for_every_reachable_block():
+    """``IN = USE ∪ (OUT \\ DEF)`` is checked block by block, not assumed.
+
+    If the table the UI shows is ever computed differently from the fixed point, this is
+    the equation that catches it.
+    """
+    source = (
+        "int f(int n) { int s; s = 0; int i; i = 0;"
+        " while (i < n) { s = s + i; i = i + 1; } return s; }"
+    )
+    report = report_for(source)
+    assert report["live_out"], "expected analyzed blocks"
+    for block_id, out in report["live_out"].items():
+        expected = set(report["use"][block_id]) | (set(out) - set(report["def"][block_id]))
+        assert set(report["live_in"][block_id]) == expected, block_id
+
+
+def test_block_use_def_and_liveness_are_hand_verified_through_a_loop():
+    """The loop's fixed point, written out by hand from the TAC.
+
+    ``B1`` initializes ``s`` and ``i``, so it only uses ``n``. ``B2`` tests ``i < n`` and
+    passes ``i`` and ``n``; ``B3`` adds ``s + i`` and increments ``i``, so it uses both and
+    defines both (plus the temporaries). ``B4`` reads ``s``. The live sets need two passes
+    around the back edge to settle, which is the point of asserting them literally.
+    """
+    source = (
+        "int f(int n) { int s; s = 0; int i; i = 0;"
+        " while (i < n) { s = s + i; i = i + 1; } return s; }"
+    )
+    report = report_for(source)
+    assert report["use"] == {
+        "B1": [],
+        "B2": ["i", "n"],
+        "B3": ["i", "s"],
+        "B4": ["s"],
+    }
+    assert report["def"] == {
+        "B1": ["i", "s"],
+        "B2": ["t1"],
+        "B3": ["i", "s", "t2", "t3"],
+        "B4": [],
+    }
+    assert report["live_in"] == {
+        "B1": ["n"],
+        "B2": ["i", "n", "s"],
+        "B3": ["i", "n", "s"],
+        "B4": ["s"],
+    }
+
+
 # ========================================================= reaching definitions
 
 

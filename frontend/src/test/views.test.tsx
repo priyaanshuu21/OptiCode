@@ -24,17 +24,26 @@ import { loadFixture, type FixtureName } from './fixtures'
 /** Put a recorded response in the store without going through the network. */
 function seed(name: FixtureName): void {
   const { response, source } = loadFixture(name)
-  useCompilerStore.setState({ response, source, status: 'ready', error: null })
+  // `compiledSource` records which source the response describes; without it the store cannot
+  // tell a current result from a stale one, and the optimization screen falls back to the
+  // response's own inline proposal.
+  useCompilerStore.setState({ response, source, compiledSource: source, status: 'ready', error: null })
 }
 
 function reset(): void {
   useCompilerStore.setState({
     response: null,
+    source: '',
+    compiledSource: null,
     status: 'idle',
     error: null,
     selection: null,
+    selectedBlock: null,
     activeStage: 'ast',
     mode: 'analyze',
+    optimizationPreview: null,
+    previewStatus: 'idle',
+    previewError: null,
   })
 }
 

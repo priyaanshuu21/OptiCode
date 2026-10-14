@@ -74,7 +74,7 @@ function FindingCard({ finding }: { finding: Finding }): JSX.Element {
               </span>
             ) : null}
             {finding.instruction_ids.length > 0 ? (
-              <span className="font-mono text-2xs text-slate-600">
+              <span className="font-mono text-2xs text-slate-400">
                 {finding.instruction_ids.join(', ')}
               </span>
             ) : null}
@@ -117,7 +117,7 @@ function FindingCard({ finding }: { finding: Finding }): JSX.Element {
             <ul className="mt-1.5 space-y-0.5">
               {finding.evidence.map((item, index) => (
                 <li key={index} className="text-2xs leading-relaxed text-slate-500">
-                  <span className="font-mono text-slate-600">{formatLines(item.span)}</span> {item.note}
+                  <span className="font-mono text-slate-400">{formatLines(item.span)}</span> {item.note}
                 </li>
               ))}
             </ul>
@@ -210,7 +210,7 @@ export function FindingsView(): JSX.Element {
                   {KIND_LABEL[kind] ?? kind}
                 </span>
                 <Count label={`${findings.length} ${KIND_LABEL[kind] ?? kind}`}>{findings.length}</Count>
-                <span className="ml-auto font-mono text-2xs text-slate-600">
+                <span className="ml-auto font-mono text-2xs text-slate-400">
                   {open === kind ? 'hide' : 'show'}
                 </span>
               </button>

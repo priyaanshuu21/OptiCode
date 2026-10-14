@@ -4048,6 +4048,43 @@
             ]
           }
         },
+        "def": {
+          "B1": [
+            "comparisons",
+            "doubled",
+            "mixed",
+            "part",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "whole_2"
+          ],
+          "B2": [
+            "comparisons",
+            "t6"
+          ],
+          "B3": [
+            "t7"
+          ],
+          "B4": [
+            "comparisons",
+            "t8"
+          ],
+          "B5": [
+            "t9"
+          ],
+          "B6": [
+            "comparisons",
+            "t10"
+          ],
+          "B7": [
+            "flag",
+            "t11",
+            "zero"
+          ]
+        },
         "exit_values": {
           "comparisons": {
             "kind": "nac"
@@ -6007,7 +6044,28 @@
             "trace_truncated": false
           }
         },
-        "uninitialized_reads": []
+        "uninitialized_reads": [],
+        "use": {
+          "B1": [],
+          "B2": [
+            "comparisons"
+          ],
+          "B3": [
+            "mixed"
+          ],
+          "B4": [
+            "comparisons"
+          ],
+          "B5": [
+            "mixed"
+          ],
+          "B6": [
+            "comparisons"
+          ],
+          "B7": [
+            "comparisons"
+          ]
+        }
       },
       "scale": {
         "branches": [],
@@ -6043,6 +6101,11 @@
               ]
             ]
           }
+        },
+        "def": {
+          "B1": [
+            "t1"
+          ]
         },
         "exit_values": {
           "factor": {
@@ -6202,7 +6265,13 @@
             "trace_truncated": false
           }
         },
-        "uninitialized_reads": []
+        "uninitialized_reads": [],
+        "use": {
+          "B1": [
+            "factor",
+            "value"
+          ]
+        }
       },
       "to_int": {
         "branches": [],
@@ -6238,6 +6307,12 @@
               ]
             ]
           }
+        },
+        "def": {
+          "B1": [
+            "t1",
+            "whole"
+          ]
         },
         "exit_values": {
           "t1": {
@@ -6415,7 +6490,12 @@
             "trace_truncated": false
           }
         },
-        "uninitialized_reads": []
+        "uninitialized_reads": [],
+        "use": {
+          "B1": [
+            "value_2"
+          ]
+        }
       }
     },
     "diagnostics": [

@@ -23,7 +23,7 @@ from ..cfg import CFG, BasicBlock
 from ..ir.tac import Instruction, Opcode
 from .constprop import State, apply_instruction, read_operand
 from .lattice import NAC, AbstractValue
-from .liveness import NameSet
+from .liveness import NameSet, defined_in, uses_before_def
 from .reaching import Definition, DefinitionKind, definition
 from .solver import Solution
 
@@ -276,6 +276,12 @@ class FunctionAnalysis:
     uninitialized_reads: tuple[str, ...]
     #: Values known at every exit, merged. A CONST here is a real compile-time constant.
     exit_values: dict[str, AbstractValue]
+    #: Block id → ``USE[B]``: names read before being written in the block. These two sets
+    #: are the local half of the liveness transfer, and the only way a reader can check
+    #: ``IN = USE ∪ (OUT \\ DEF)`` against the table the UI shows. ``def_set`` is spelled
+    #: with a suffix because ``def`` is a Python keyword; it serializes as ``"def"``.
+    use: dict[str, NameSet] = field(default_factory=dict)
+    def_set: dict[str, NameSet] = field(default_factory=dict)
     #: How many block updates each analysis needed, for the UI.
     iterations: dict[str, int] = field(default_factory=dict)
     #: Per-analysis solver traces, for the iteration stepper. Empty when the caller did not
@@ -304,6 +310,8 @@ class FunctionAnalysis:
             "exit_values": {
                 key: self.exit_values[key].to_dict() for key in sorted(self.exit_values)
             },
+            "use": {key: sorted(value) for key, value in sorted(self.use.items())},
+            "def": {key: sorted(value) for key, value in sorted(self.def_set.items())},
             "iterations": dict(sorted(self.iterations.items())),
             "traces": {key: self.traces[key].to_dict() for key in sorted(self.traces)},
         }
@@ -410,10 +418,14 @@ def build_function_analysis(
 
     instructions: dict[str, InstructionFacts] = {}
     branches: list[BranchCondition] = []
+    block_use: dict[str, NameSet] = {}
+    block_def: dict[str, NameSet] = {}
 
     for block in cfg.blocks:
         if not block.reachable or block.id not in live_out:
             continue
+        block_use[block.id] = uses_before_def(block.instructions)
+        block_def[block.id] = defined_in(block.instructions)
         block_live_out = live_out[block.id]
         per_instruction_in = live_before(block, block_live_out)
         per_instruction_out = live_after(block, block_live_out)
@@ -471,6 +483,8 @@ def build_function_analysis(
             f"{use[0]}#{use[1]}" for use in chains.uninitialized_reads()
         ),
         exit_values=dict(exit_values),
+        use=block_use,
+        def_set=block_def,
         iterations=dict(iterations),
         traces=(
             {name: SolverTrace.of(solution) for name, solution in solutions.items()}

@@ -38,10 +38,10 @@ function defineTheme(monaco: typeof Monaco): void {
       { token: 'comment', foreground: '64748b', fontStyle: 'italic' },
     ],
     colors: {
-      'editor.background': '#0a0e1a',
-      'editor.lineHighlightBackground': '#111a2e',
-      'editorLineNumber.foreground': '#3f4a63',
-      'editorLineNumber.activeForeground': '#94a3b8',
+      'editor.background': '#0b1220',
+      'editor.lineHighlightBackground': '#111c2e',
+      'editorLineNumber.foreground': '#64748b',
+      'editorLineNumber.activeForeground': '#cbd5e1',
       'editor.selectionBackground': '#1e3a5f',
     },
   })
@@ -213,7 +213,8 @@ export function SourceEditor({ height = '100%' }: { height?: string }): JSX.Elem
       onChange={(value) => setSource(value ?? '')}
       onMount={handleMount}
       options={{
-        fontSize: 13,
+        fontSize: 14,
+        lineHeight: 21,
         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
         minimap: { enabled: false },
         scrollBeyondLastLine: false,

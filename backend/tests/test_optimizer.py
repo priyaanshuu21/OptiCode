@@ -431,17 +431,19 @@ def test_unreachable_blocks_keeps_the_return_of_a_void_function():
     assert any(i.opcode is Opcode.RETURN for i in instructions_of(context))
 
 
-def test_a_label_only_block_still_falls_through_to_the_next_block():
-    """The fall-through bug, asserted where it actually lived.
+def test_consecutive_labels_merge_and_keep_the_loop_back_edge():
+    """Two labels in a row are one block, and the loop still closes.
 
-    A loop body whose `continue` is the last statement lowers to a block holding a label
-    and no instructions - ``B7``/``Lskip7`` below. When such a block was given no
-    successors, the edge out of the back of the loop vanished from the CFG. Nothing
-    crashed: reachability quietly lost those blocks, every analysis downstream solved a
-    different program from the one the interpreter ran, and ``examples/07``'s
-    ``count_up_to`` confidently reported 1 instead of 5. The interpreter oracle is what
-    turned that into a test failure instead of a shipping bug, which is why the shape is
-    now pinned at the CFG level.
+    A loop body whose `continue` is the last statement lowers to `Lskip7` immediately
+    followed by the loop's own `Lcont3`, with nothing executing between them. Splitting
+    at each label used to leave a block holding a label and no instructions. The run is
+    now folded into one block, so the label a jump lands on and the increment that
+    follows it are provably the same straight-line run: the fall-through that once
+    vanished is now internal, and the back edge to the header is what makes it a loop.
+
+    The historical failure this guards: with no edge out of the label-only block,
+    reachability quietly lost those blocks, ``examples/07``'s ``count_up_to`` confidently
+    reported 1 instead of 5, and only the interpreter oracle caught it.
     """
     source = (
         "int main() {\n"
@@ -458,17 +460,22 @@ def test_a_label_only_block_still_falls_through_to_the_next_block():
     )
     cfg = build_program_cfgs(lowered(source))["main"]
 
-    empty = [block for block in cfg.blocks if not block.instructions]
-    assert len(empty) == 1, f"expected exactly one label-only block, got {len(empty)}"
-    assert empty[0].id == "B7"
-    assert empty[0].successors == ("B8",), (
-        "B7 holds only a label and must fall through to the next block in layout order"
+    assert all(block.instructions for block in cfg.blocks), (
+        "a block holding only labels is not a block; the run must be merged"
     )
 
-    # And the loop is still a loop, with its back edge intact. Reachability is deliberately
-    # not asserted: this program has a genuinely unreachable tail after the `break`, and
-    # the point of the test is the edge, not the marking.
-    assert cfg.back_edges, "the loop's back edge is missing from the CFG"
+    merged = next(block for block in cfg.blocks if "Lskip7" in block.labels)
+    assert "Lcont3" in merged.labels, "consecutive labels must share one block"
+    assert merged.instructions, "the merged block must hold the code the labels name"
+
+    header = next(block for block in cfg.blocks if "Lstart1" in block.labels)
+    assert merged.successors == (header.id,), (
+        "the merged block must close the loop back to its header"
+    )
+    assert any(
+        edge.src == merged.id and edge.dst == header.id and edge.is_back_edge
+        for edge in cfg.edges
+    ), "the loop's back edge is missing from the CFG"
 
 
 def test_a_loop_body_ending_in_continue_still_produces_the_right_answer():

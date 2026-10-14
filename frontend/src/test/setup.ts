@@ -33,6 +33,23 @@ globalThis.MonacoEnvironment = {
 // jsdom has no layout engine, so `scrollIntoView` and friends are missing.
 Element.prototype.scrollIntoView ??= function scrollIntoView(): void {}
 
+// jsdom has no media-query support, and the workspace asks whether the viewport is wide enough
+// for a side-by-side split. Reporting a wide viewport exercises the draggable-separator layout,
+// which is what every test that renders the shell actually wants.
+if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
+  window.matchMedia = (query: string): MediaQueryList =>
+    ({
+      matches: true,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }) as unknown as MediaQueryList
+}
+
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()

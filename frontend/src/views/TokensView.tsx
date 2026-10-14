@@ -95,7 +95,7 @@ export function TokensView(): JSX.Element {
                   token.category === 'error' ? 'bg-severity-error/10' : ''
                 }`}
               >
-                <td className="px-3 py-1 font-mono text-slate-600">{index + 1}</td>
+                <td className="px-3 py-1 font-mono text-slate-400">{index + 1}</td>
                 <td className="px-3 py-1 font-mono text-slate-400">{token.type}</td>
                 <td className={`px-3 py-1 font-mono ${CATEGORY_COLOURS[token.category] ?? 'text-slate-200'}`}>
                   {token.lexeme === '\n' ? '\\n' : token.lexeme === ' ' ? '␠' : token.lexeme}

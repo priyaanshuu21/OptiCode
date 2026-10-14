@@ -145,7 +145,7 @@ export function DiagnosticsView(): JSX.Element {
                     <span className="mt-1 block space-y-0.5">
                       {diagnostic.related.map((item, relatedIndex) => (
                         <span key={relatedIndex} className="block text-2xs leading-relaxed text-slate-500">
-                          <span className="font-mono text-slate-600">{formatSpan(item.span)}</span>{' '}
+                          <span className="font-mono text-slate-400">{formatSpan(item.span)}</span>{' '}
                           {item.message}
                         </span>
                       ))}

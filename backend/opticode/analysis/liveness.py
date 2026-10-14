@@ -35,6 +35,7 @@ from .solver import DataFlowProblem, Direction, Solution, solve
 __all__ = [
     "NO_LIVE",
     "NameSet",
+    "defined_in",
     "live_after",
     "live_before",
     "liveness",
@@ -70,6 +71,19 @@ def uses_before_def(instructions: tuple[Instruction, ...]) -> NameSet:
                 used.add(operand.name)
         defined.update(operand.name for operand in instruction.defs())
     return frozenset(used)
+
+
+def defined_in(instructions: tuple[Instruction, ...]) -> NameSet:
+    """``DEF[B]``: every variable the block writes, whether or not it is read first.
+
+    This is deliberately *not* :func:`uses_before_def`: ``x = 1; x = 2`` defines ``x`` twice
+    and the set records it once, because the fixed point only asks whether a name is killed
+    somewhere in the block, not how many times. It pairs with ``USE`` to define ``IN`` via
+    ``USE[B] ∪ (OUT[B] \\ DEF[B])``.
+    """
+    return frozenset(
+        operand.name for instruction in instructions for operand in instruction.defs()
+    )
 
 
 def transfer(block: BasicBlock, live_out: NameSet) -> NameSet:

@@ -250,6 +250,16 @@ export interface FunctionFacts {
   instructions: Record<string, InstructionFacts>
   live_in?: Record<string, string[]>
   live_out?: Record<string, string[]>
+  /**
+   * Block id → `USE[B]`: names read in the block before anything there writes them.
+   *
+   * The local half of the liveness transfer. `def` below is spelled without the trailing
+   * keyword-free alias because the backend serializes the set as `"def"`, which is a reserved
+   * word in JavaScript only as a statement — the property access `facts.def` is fine.
+   */
+  use?: Record<string, string[]>
+  /** Block id → `DEF[B]`: every name the block writes, read first or not. */
+  def?: Record<string, string[]>
   reaching_in?: Record<string, string[]>
   reaching_out?: Record<string, string[]>
   /** Block updates each analysis needed. Parallel to the keys of `traces`. */

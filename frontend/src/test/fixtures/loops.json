@@ -2477,6 +2477,13 @@
             ]
           }
         },
+        "def": {
+          "B1": [
+            "n_3",
+            "t1",
+            "t2"
+          ]
+        },
         "exit_values": {
           "n_3": {
             "kind": "const",
@@ -2726,7 +2733,10 @@
             "trace_truncated": false
           }
         },
-        "uninitialized_reads": []
+        "uninitialized_reads": [],
+        "use": {
+          "B1": []
+        }
       },
       "sum_for": {
         "branches": [
@@ -2851,6 +2861,22 @@
               ]
             ]
           }
+        },
+        "def": {
+          "B1": [
+            "i_2",
+            "total_2"
+          ],
+          "B2": [
+            "t1"
+          ],
+          "B3": [
+            "i_2",
+            "t2",
+            "t3",
+            "total_2"
+          ],
+          "B4": []
         },
         "exit_values": {
           "i_2": {
@@ -3756,7 +3782,21 @@
             "trace_truncated": false
           }
         },
-        "uninitialized_reads": []
+        "uninitialized_reads": [],
+        "use": {
+          "B1": [],
+          "B2": [
+            "i_2",
+            "n_2"
+          ],
+          "B3": [
+            "i_2",
+            "total_2"
+          ],
+          "B4": [
+            "total_2"
+          ]
+        }
       },
       "sum_while": {
         "branches": [
@@ -3881,6 +3921,22 @@
               ]
             ]
           }
+        },
+        "def": {
+          "B1": [
+            "i",
+            "total"
+          ],
+          "B2": [
+            "t1"
+          ],
+          "B3": [
+            "i",
+            "t2",
+            "t3",
+            "total"
+          ],
+          "B4": []
         },
         "exit_values": {
           "i": {
@@ -4786,7 +4842,21 @@
             "trace_truncated": false
           }
         },
-        "uninitialized_reads": []
+        "uninitialized_reads": [],
+        "use": {
+          "B1": [],
+          "B2": [
+            "i",
+            "n"
+          ],
+          "B3": [
+            "i",
+            "total"
+          ],
+          "B4": [
+            "total"
+          ]
+        }
       }
     },
     "diagnostics": [

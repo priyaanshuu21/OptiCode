@@ -22,18 +22,33 @@ import { loadFixture, type FixtureName } from './fixtures'
 
 function seed(name: FixtureName): void {
   const { response, source } = loadFixture(name)
-  useCompilerStore.setState({ response, source, status: 'ready', error: null, selection: null, selectedBlock: null })
+  useCompilerStore.setState({
+    response,
+    source,
+    // The recorded response describes exactly this source; saying so is what lets the
+    // optimization screen treat it as current rather than as stale.
+    compiledSource: source,
+    status: 'ready',
+    error: null,
+    selection: null,
+    selectedBlock: null,
+  })
 }
 
 function reset(): void {
   useCompilerStore.setState({
     response: null,
+    source: '',
+    compiledSource: null,
     status: 'idle',
     error: null,
     selection: null,
     selectedBlock: null,
     activeStage: 'cfg',
     mode: 'analyze',
+    optimizationPreview: null,
+    previewStatus: 'idle',
+    previewError: null,
   })
 }
 
@@ -50,8 +65,9 @@ describe('CFG view', () => {
 
     // Selecting a node has to move the source selection too, or the graph and the editor are
     // two disconnected pictures of the same program.
+    // One node per block, plus the synthetic ENTRY and EXIT terminals the graph draws.
     const nodes = document.querySelectorAll('.react-flow__node')
-    expect(nodes.length).toBe(blockCount)
+    expect(nodes.length).toBe(blockCount + 2)
 
     // fireEvent, not user-event: React Flow wires d3-drag mousedown handlers onto its
     // nodes, and d3 touches `document` in ways jsdom cannot provide. A plain click event
@@ -82,7 +98,7 @@ describe('CFG view', () => {
 describe('data-flow view', () => {
   beforeEach(reset)
 
-  it('shows a table of entry and exit values for every block', () => {
+  it('shows one USE/DEF/IN/OUT row for every block', () => {
     seed('loops')
     render(<DataFlowView />)
 
@@ -94,85 +110,71 @@ describe('data-flow view', () => {
     // A header row plus one row per block: the table has to cover the whole function, because a
     // partial table invites the reader to assume the missing blocks were uninteresting.
     expect(within(table).getAllByRole('row')).toHaveLength((main?.blocks.length ?? 0) + 1)
+    for (const column of ['USE', 'DEF', 'IN', 'OUT']) {
+      expect(within(table).getByRole('columnheader', { name: column })).toBeInTheDocument()
+    }
     expect(dataflow?.main?.live_in).toBeDefined()
   })
 
-  it('switches analyses and shows the matching values', async () => {
-    seed('dead_code')
-    render(<DataFlowView />)
-
-    // The selected function defaults to the first alphabetically, which is `dead_in_branch`.
-    const before = screen.getByRole('table').textContent
-    await userEvent.click(screen.getByRole('button', { name: 'Reaching defs' }))
-    const after = screen.getByRole('table').textContent
-
-    // Liveness and reaching defs answer different questions; showing one under the other's
-    // heading would be confidently wrong rather than merely empty.
-    expect(before).not.toBe(after)
-  })
-
-  it('steps through the solver trace of a function that needed several passes', async () => {
-    // `main` in `loops` converges in a single block update, which would make the stepper look
-    // like it does nothing. `sum_while` needed eight, so the replay has something to show.
+  it('fills each row from the recorded liveness sets, marking an empty set as None', () => {
     seed('loops')
-    useCompilerStore.setState({ selectedBlock: { function: 'sum_while', block: 'B1' } })
+    useCompilerStore.setState({ selectedBlock: { function: 'sum_while', block: 'B2' } })
     render(<DataFlowView />)
 
-    const trace = loadFixture('loops').response.dataflow?.sum_while?.traces?.liveness
-    expect((trace?.steps.length ?? 0)).toBeGreaterThan(1)
+    const { cfg, dataflow } = loadFixture('loops').response
+    const graph = cfg?.sum_while
+    const facts = dataflow?.sum_while
+    expect(graph).toBeDefined()
+    expect(facts).toBeDefined()
 
-    // It starts at the first update, not at a random one.
-    expect(screen.getByText(`step 1 of ${trace?.steps.length}`)).toBeInTheDocument()
-
-    await userEvent.click(screen.getByRole('button', { name: 'Next iteration' }))
-    expect(screen.getByText(`step 2 of ${trace?.steps.length}`)).toBeInTheDocument()
-
-    await userEvent.click(screen.getByRole('button', { name: 'Last iteration' }))
-    expect(
-      screen.getByText(`step ${trace?.steps.length} of ${trace?.steps.length}`),
-    ).toBeInTheDocument()
-  })
-
-  it('labels a truncated trace instead of implying the replay is complete', () => {
-    seed('loops')
-    useCompilerStore.setState({ selectedBlock: { function: 'sum_while', block: 'B1' } })
-    render(<DataFlowView />)
-
-    // The recorded trace is not truncated, so the honest thing is to say nothing about the cap.
-    // A view that always printed "showing the first N" would be asserting a limit that is not
-    // there, and a reader would distrust the steps it *is* showing.
-    const trace = loadFixture('loops').response.dataflow?.sum_while?.traces?.liveness
-    expect(trace?.trace_truncated).toBe(false)
-    expect(screen.queryByText(/showing the first/)).not.toBeInTheDocument()
-  })
-
-  it('says when a trace was cut short, rather than presenting a partial replay as complete', () => {
-    const fixture = loadFixture('loops')
-    const facts = fixture.response.dataflow as unknown as Record<string, Record<string, unknown>>
-    const original = facts.sum_while?.traces as unknown as Record<string, { steps: unknown[]; trace_truncated: boolean }>
-    const liveness = original.liveness
-    expect(liveness?.steps.length).toBeGreaterThan(2)
-    facts.sum_while = {
-      ...facts.sum_while,
-      traces: {
-        ...original,
-        // Halve the recorded steps and mark it truncated, which is exactly what the backend
-        // does when a long-running function hits the cap.
-        liveness: { ...liveness, steps: liveness!.steps.slice(0, 2), trace_truncated: true },
-      },
+    const table = screen.getByRole('table')
+    for (const block of graph!.blocks) {
+      const row = within(table).getByRole('row', { name: new RegExp(`\\b${block.id}\\b`) })
+      const sets = [
+        facts!.use?.[block.id],
+        facts!.def?.[block.id],
+        facts!.live_in?.[block.id],
+        facts!.live_out?.[block.id],
+      ]
+      for (const value of sets) {
+        // An empty set is a result and reads as "None"; the row must not leave it blank.
+        const text =
+          value === undefined
+            ? 'Not analyzed: unreachable'
+            : value.length > 0
+              ? value.join(', ')
+              : 'None'
+        expect(row.textContent, `${block.id}: ${text}`).toContain(text)
+      }
     }
-    useCompilerStore.setState({
-      response: { ...fixture.response, dataflow: facts as unknown as typeof fixture.response.dataflow },
-      source: fixture.source,
-      status: 'ready',
-      selectedBlock: { function: 'sum_while', block: 'B1' },
-    })
+  })
+
+  it('marks an unreachable block as not analyzed rather than as an empty set', () => {
+    // `always_early` returns before B2, so the solver never visits B2 and B3. Recording that as
+    // "None" would claim the analysis proved their sets empty, which it did not.
+    seed('unreachable')
     render(<DataFlowView />)
 
-    expect(screen.getByText(/showing the first 2/)).toBeInTheDocument()
-    // The true iteration count is still shown, because the cap limits what is *replayed*, not
-    // what the solver did.
-    expect(screen.getByText(/^8 block updates/)).toBeInTheDocument()
+    const { cfg, dataflow } = loadFixture('unreachable').response
+    const graph = cfg?.always_early
+    expect(graph?.blocks.some((block) => !block.reachable)).toBe(true)
+    expect(dataflow?.always_early?.live_in?.B2).toBeUndefined()
+
+    const table = screen.getByRole('table')
+    const row = within(table).getByRole('row', { name: /\bB2\b/ })
+    expect(row.textContent).toContain('Not analyzed: unreachable')
+  })
+
+  it('shows only liveness — no analysis selector and no convergence stepper', () => {
+    seed('loops')
+    render(<DataFlowView />)
+
+    // The page answers one question now. The other analyses' controls must be gone, not merely
+    // hidden behind a default, or the page still promises a choice it does not offer.
+    expect(screen.queryByRole('button', { name: 'Reaching defs' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Next iteration' })).not.toBeInTheDocument()
+    // ...but the transfer that produced the table is still stated, so the numbers are checkable.
+    expect(screen.getByText(/How IN and OUT are computed/)).toBeInTheDocument()
   })
 
   it('says the stage was skipped rather than showing an empty table', () => {
@@ -242,6 +244,24 @@ describe('findings view', () => {
 
 describe('optimizer view', () => {
   beforeEach(reset)
+
+  it('refuses to apply a proposal the editor has moved past', () => {
+    seed('folded')
+    // A proposal built from some earlier text: it no longer matches the editor, so applying it
+    // would overwrite newer code with something the reader never saw.
+    useCompilerStore.setState({
+      optimizationPreview: {
+        originalSource: 'int main() { return 1; }',
+        optimizedSource: 'int main() { return 0; }',
+        changed: true,
+        reason: '',
+      },
+    })
+    render(<OptimizationView />)
+
+    expect(screen.getByText(/code changed since this preview/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Apply to Editor' })).toBeDisabled()
+  })
 
   it('reports the passes, the size change, and what it skipped', () => {
     seed('loops')
@@ -415,6 +435,7 @@ describe('optimizer view', () => {
     useCompilerStore.setState({
       response: { ...fixture.response, codegen: { ...codegen, applied: false } },
       source: codegen.source,
+      compiledSource: codegen.source,
       status: 'ready',
     })
     render(<OptimizationView />)
@@ -432,7 +453,9 @@ describe('optimizer view', () => {
     // banner would read as outstanding work that the banner just denied.
     expect(screen.queryByText('as written')).not.toBeInTheDocument()
     expect(screen.queryByText('after the optimizer')).not.toBeInTheDocument()
-    // Nothing left to hand over, so nothing to offer.
-    expect(screen.queryByRole('button', { name: 'Apply to Editor' })).not.toBeInTheDocument()
+    // Nothing left to hand over, so nothing to apply: the control stays visible but disabled, so
+    // the reader can see the action exists and why it is unavailable rather than hunting for it.
+    expect(screen.getByText(/No optimization changes available/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Apply to Editor' })).toBeDisabled()
   })
 })

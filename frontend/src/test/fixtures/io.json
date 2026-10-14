@@ -1624,6 +1624,20 @@
             ]
           }
         },
+        "def": {
+          "B1": [
+            "a",
+            "b",
+            "count",
+            "price",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "total"
+          ]
+        },
         "exit_values": {
           "a": {
             "kind": "nac"
@@ -2283,7 +2297,10 @@
             "trace_truncated": false
           }
         },
-        "uninitialized_reads": []
+        "uninitialized_reads": [],
+        "use": {
+          "B1": []
+        }
       }
     },
     "diagnostics": [

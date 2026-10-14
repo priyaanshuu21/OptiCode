@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { countAstNodes, formatLines, formatSpan, maxAstDepth, spanJoin, spanToRange, walkAst } from '@/lib/span'
 import { classify, formatOperand, instructionSummary } from '@/lib/ir'
-import { layoutGraph, readableOrder } from '@/lib/layout'
+import { ENTRY_ID, EXIT_ID, layoutGraph, readableOrder } from '@/lib/layout'
 import {
   astChildren,
   astDepth,
@@ -309,10 +309,14 @@ describe('graph layout', () => {
   const graphs = loadFixture('loops').response.cfg as Record<string, FunctionCfg>
   const graph = graphs.sum_for as FunctionCfg
 
-  it('produces one node per block, keyed by block id', () => {
+  it('produces one node per block plus the entry and exit terminals', () => {
     const { nodes } = layoutGraph(graph)
-    expect(nodes).toHaveLength(graph.blocks.length)
-    expect(new Set(nodes.map((node) => node.id))).toEqual(new Set(graph.blocks.map((block) => block.id)))
+    const ids = nodes.map((node) => node.id)
+    // The two terminals are drawn and are not blocks, so the block nodes are the rest.
+    expect(ids).toContain(ENTRY_ID)
+    expect(ids).toContain(EXIT_ID)
+    expect(ids.filter((id) => id !== ENTRY_ID && id !== EXIT_ID)).toHaveLength(graph.blocks.length)
+    expect(new Set(ids)).toEqual(new Set([ENTRY_ID, EXIT_ID, ...graph.blocks.map((block) => block.id)]))
   })
 
   it('places every node at a finite coordinate', () => {
@@ -362,14 +366,29 @@ describe('graph layout', () => {
     expect(body!.position.y).toBeGreaterThan(header!.position.y)
   })
 
-  it('gives each node a preview and an overflow count', () => {
+  it('shows every instruction of a block, not a truncated preview', () => {
     const { nodes } = layoutGraph(graph)
     const biggest = graph.blocks.reduce((max, block) =>
       block.instructions.length > max.instructions.length ? block : max,
     )
     const node = nodes.find((candidate) => candidate.id === biggest.id)
-    expect(node?.data.preview.length).toBe(4)
-    expect(node?.data.hidden).toBe(biggest.instructions.length - 4)
+    // The node is the block: a preview that stopped at four would hide the two instructions a
+    // reader is most likely looking for.
+    expect(node?.data.preview).toHaveLength(biggest.instructions.length)
+    expect(node?.data.hidden).toBe(0)
+  })
+
+  it('connects the entry terminal to the entry block and keeps return edges to the exit', () => {
+    const { edges } = layoutGraph(graph)
+    const entryEdge = edges.find((edge) => edge.source === ENTRY_ID)
+    expect(entryEdge?.target).toBe(graph.entry)
+
+    // A return edge used to be dropped because its target was the synthetic exit; now it is a
+    // drawn edge into the EXIT node, so "returns" is visible rather than implied.
+    for (const edge of graph.edges.filter((candidate) => candidate.kind === 'return')) {
+      const drawn = edges.find((candidate) => candidate.source === edge.src && candidate.target === EXIT_ID)
+      expect(drawn, `${edge.src} -> EXIT`).toBeDefined()
+    }
   })
 
   it('reports a readable order for a graph with no rpo', () => {

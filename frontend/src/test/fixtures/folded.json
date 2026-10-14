@@ -4642,6 +4642,12 @@
             ]
           }
         },
+        "def": {
+          "B1": [
+            "t1",
+            "t2"
+          ]
+        },
         "exit_values": {
           "t1": {
             "kind": "const",
@@ -4823,7 +4829,10 @@
             "trace_truncated": false
           }
         },
-        "uninitialized_reads": []
+        "uninitialized_reads": [],
+        "use": {
+          "B1": []
+        }
       },
       "folded_compare": {
         "branches": [],
@@ -4850,6 +4859,12 @@
               ]
             ]
           }
+        },
+        "def": {
+          "B1": [
+            "t1",
+            "t2"
+          ]
         },
         "exit_values": {
           "t1": {
@@ -5032,7 +5047,10 @@
             "trace_truncated": false
           }
         },
-        "uninitialized_reads": []
+        "uninitialized_reads": [],
+        "use": {
+          "B1": []
+        }
       },
       "folded_divide": {
         "branches": [],
@@ -5050,6 +5068,11 @@
               ]
             ]
           }
+        },
+        "def": {
+          "B1": [
+            "t1"
+          ]
         },
         "exit_values": {
           "t1": {
@@ -5187,7 +5210,10 @@
             "trace_truncated": false
           }
         },
-        "uninitialized_reads": []
+        "uninitialized_reads": [],
+        "use": {
+          "B1": []
+        }
       },
       "folded_float": {
         "branches": [],
@@ -5205,6 +5231,11 @@
               ]
             ]
           }
+        },
+        "def": {
+          "B1": [
+            "t1"
+          ]
         },
         "exit_values": {
           "t1": {
@@ -5342,7 +5373,10 @@
             "trace_truncated": false
           }
         },
-        "uninitialized_reads": []
+        "uninitialized_reads": [],
+        "use": {
+          "B1": []
+        }
       },
       "folded_float_mix": {
         "branches": [],
@@ -5369,6 +5403,12 @@
               ]
             ]
           }
+        },
+        "def": {
+          "B1": [
+            "t1",
+            "t2"
+          ]
         },
         "exit_values": {
           "t1": {
@@ -5551,7 +5591,10 @@
             "trace_truncated": false
           }
         },
-        "uninitialized_reads": []
+        "uninitialized_reads": [],
+        "use": {
+          "B1": []
+        }
       },
       "folded_logic": {
         "branches": [
@@ -5603,6 +5646,17 @@
               ]
             ]
           }
+        },
+        "def": {
+          "B1": [],
+          "B2": [],
+          "B3": [
+            "t1"
+          ],
+          "B4": [
+            "t1"
+          ],
+          "B5": []
         },
         "exit_values": {
           "t1": {
@@ -5964,7 +6018,16 @@
             "trace_truncated": false
           }
         },
-        "uninitialized_reads": []
+        "uninitialized_reads": [],
+        "use": {
+          "B1": [],
+          "B2": [],
+          "B3": [],
+          "B4": [],
+          "B5": [
+            "t1"
+          ]
+        }
       },
       "folded_modulo": {
         "branches": [],
@@ -5982,6 +6045,11 @@
               ]
             ]
           }
+        },
+        "def": {
+          "B1": [
+            "t1"
+          ]
         },
         "exit_values": {
           "t1": {
@@ -6119,7 +6187,10 @@
             "trace_truncated": false
           }
         },
-        "uninitialized_reads": []
+        "uninitialized_reads": [],
+        "use": {
+          "B1": []
+        }
       },
       "folded_subtract": {
         "branches": [],
@@ -6146,6 +6217,12 @@
               ]
             ]
           }
+        },
+        "def": {
+          "B1": [
+            "t1",
+            "t2"
+          ]
         },
         "exit_values": {
           "t1": {
@@ -6328,7 +6405,10 @@
             "trace_truncated": false
           }
         },
-        "uninitialized_reads": []
+        "uninitialized_reads": [],
+        "use": {
+          "B1": []
+        }
       },
       "main": {
         "branches": [],
@@ -6418,6 +6498,19 @@
               ]
             ]
           }
+        },
+        "def": {
+          "B1": [
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6",
+            "t7",
+            "t8",
+            "t9"
+          ]
         },
         "exit_values": {
           "t1": {
@@ -6957,7 +7050,10 @@
             "trace_truncated": false
           }
         },
-        "uninitialized_reads": []
+        "uninitialized_reads": [],
+        "use": {
+          "B1": []
+        }
       },
       "mixed_with_variable": {
         "branches": [],
@@ -6993,6 +7089,12 @@
               ]
             ]
           }
+        },
+        "def": {
+          "B1": [
+            "t1",
+            "t2"
+          ]
         },
         "exit_values": {
           "t1": {
@@ -7180,7 +7282,12 @@
             "trace_truncated": false
           }
         },
-        "uninitialized_reads": []
+        "uninitialized_reads": [],
+        "use": {
+          "B1": [
+            "x"
+          ]
+        }
       }
     },
     "diagnostics": [

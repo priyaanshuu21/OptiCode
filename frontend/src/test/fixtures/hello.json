@@ -259,6 +259,9 @@
           "defs_of": {},
           "uses_of": {}
         },
+        "def": {
+          "B1": []
+        },
         "exit_values": {},
         "instructions": {
           "i1": {
@@ -360,7 +363,10 @@
             "trace_truncated": false
           }
         },
-        "uninitialized_reads": []
+        "uninitialized_reads": [],
+        "use": {
+          "B1": []
+        }
       }
     },
     "diagnostics": [],
